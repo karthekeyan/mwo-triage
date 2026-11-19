@@ -1,6 +1,6 @@
 # mwo-triage Labelling Rulebook
 
-Version: 1.0 (approved 2026-11-19)
+Version: 1.2 (approved 2026-11-19)
 Applies to: every example in the mwo-triage dataset, real or synthetic.
 
 ## 1. Purpose
@@ -38,6 +38,9 @@ The job must be attended immediately, and the equipment may need to be stopped o
 - Brake or steering failure on mobile equipment (trucks, loaders, forklifts, cranes)
 - Uncontrolled movement, a dropped load, or lifting equipment failure
 - A crack, deformation or failed weld in a **load-bearing or pressure-containing** structure
+- A relief or safety valve, a fire suppression or fire alarm system, emergency lighting, a reversing alarm, a horn, or a mirror or camera on mobile equipment, **missing, damaged, bypassed or not working**
+- An access hazard: a ladder, handrail, step or walkway that is loose, broken or coming away
+- Loose or missing wheel nuts or studs on mobile equipment
 
 **Production or asset triggers:**
 - The text explicitly states that a **production line or critical machine is stopped** ("line down", "production stopped") and gives no workaround
@@ -53,13 +56,15 @@ The equipment is degraded but still running, or is down with a workaround availa
 - Running hot but still within operating limits; a temperature alarm that has cleared
 - Quality rejects caused by the equipment
 - "Breakdown", "not working" or "u/s" on a single machine, **without** a statement that a line or critical machine is stopped
+- A component described as **broken, damaged, cracked, blown, jammed, u/s or not working** is `TODAY`; a component described as **worn, due for replacement, or routine** is `PLAN` (see P3)
+- A **functional part** that is missing, loose or coming off (for example a tooth, wear plate or bolt on a working part) is `TODAY`; a missing or loose **non-functional cover, trim or label** stays `PLAN` (see P3)
 
 ### P3 `PLAN`: schedule in the next planned window
 
 A real defect with no immediate effect on safety, production or quality. It can wait for planned maintenance (days to weeks).
 - Wear found during inspection (worn belt not yet slipping, worn pads above the minimum, worn bushes)
 - A minor weep or seepage with no measurable fluid loss
-- Loose or missing non-safety fasteners, covers or panels
+- Loose or missing non-safety, non-functional fasteners, covers, panels, trim or labels (see P2 for a functional part that is loose or missing)
 - Routine component replacement (tyre change-out, filter change, scheduled part swap)
 - A request to repair, replace or modify something that is still working
 
@@ -86,7 +91,7 @@ Route by **the component or system that must be repaired**, not by the machine n
 
 ## 5. When to route `ESCALATE`
 
-Use `ESCALATE` when the text **cannot** be routed reliably to a single team:
+If the text names a component or system, route to its owner team even when the cause of the fault is unknown. Use `ESCALATE` only when no component and no discipline-specific symptom is given, or it is not a maintenance job:
 - **Too vague:** no component or symptom ("machine not working", "check machine 4", "problem with line 2")
 - **Several disciplines, equally likely,** and the text doesn't say which ("conveyor stopped" with no cause or clue)
 - **Not a maintenance job:** IT, cleaning, housekeeping, HR, purchasing, a general question
@@ -105,6 +110,7 @@ Apply these in order when the labels are unclear.
 5. **Lubrication or leak repair?** Adding, changing or applying lubricant, or a lube system fault → `LUBRICATION`. A leak that needs a seal, gasket or hose repaired → the owner of that component (`MECHANICAL` for a gearbox seal, `HYDRAULIC_PNEUMATIC` for a hydraulic hose).
 6. **Leak location decides between P1 and P2.** A leak alone is `TODAY`. A leak that is spraying, bursting, on a hot surface, near ignition or in a people area is `STOP_NOW`.
 7. **Still unclear after rules 1–6:** route `ESCALATE` and note the reason in the review log. If this happens repeatedly for the same kind of text, update this rulebook.
+8. **Calibrate, program, set or adjust?** Calibrating, programming, setting or adjusting **only applies to electronic brake controls, sensors or calibration** → `INSTRUMENTATION_CONTROLS`. A plain mechanical brake adjustment (pads, slack, clearances, or "needs adjusting" with no electronic wording) → `MECHANICAL`, the owner team.
 
 ## 7. Common abbreviations
 
@@ -155,10 +161,20 @@ Apply these in order when the labels are unclear.
 | 22 | Forklift 2 brakes not holding on ramp | `STOP_NOW` | `MECHANICAL` | Brake failure on mobile equipment |
 | 23 | VFD on conveyor 6 tripping on overcurrent twice today | `TODAY` | `ELECTRICAL` | Intermittent trip; drive power fault |
 | 24 | HMI screen on line 3 frozen, machine still running | `TODAY` | `INSTRUMENTATION_CONTROLS` | Operator has lost visibility; machine still producing |
+| 25 | Hydraulic quick-connect coupler cracked on excavator 2 | `TODAY` | `HYDRAULIC_PNEUMATIC` | Described as cracked, not worn (P2 rule); coupler is hydraulic |
+| 26 | Reversing alarm on loader 4 not working | `STOP_NOW` | `ELECTRICAL` | Safety trigger: reversing alarm not working; alarm device is the repair target (rule 2) |
+| 27 | Hose reel on bay 3 not retracting, cause unknown | `TODAY` | `MECHANICAL` | Component named (hose reel) so routed to its owner team even though the cause isn't known (section 5); not working (P2) |
+| 28 | Recalibrate brakes on loader 2 | `PLAN` | `INSTRUMENTATION_CONTROLS` | Calibration request with no failure described (P3); calibrating an electronic brake system is controls work (tie-break rule 8) |
+| 29 | Quick tip tooth missing on bucket | `TODAY` | `MECHANICAL` | Functional part (tooth) missing on a working part (P2); bucket tooth is mechanical |
+| 30 | Loose wheel nuts on pos 6, truck | `STOP_NOW` | `MECHANICAL` | Loose wheel nuts on mobile equipment (P1 safety trigger); wheel is mechanical |
 
 Note on example 16: an emergency stop that "still works" but is cracked is still `STOP_NOW`, because rule 1 lists a damaged safety device as a trigger. The route is `MECHANICAL` because the job is replacing the physical button. If the text said the e-stop circuit was faulty, the route would be `INSTRUMENTATION_CONTROLS`.
 
 Note on example 20: non-maintenance requests get `PLAN` because they carry no operational urgency, and `ESCALATE` because a planner must redirect them.
+
+Note on example 28: this is `INSTRUMENTATION_CONTROLS` because the job is calibrating an electronic brake system (tie-break rule 8). A plain mechanical brake adjustment with no electronic wording — for example "hoist brake needs adjusting" or "tighten loose brake linkage" — stays with the owner team (`MECHANICAL`).
+
+Note on example 29: a bucket tooth is a functional part of a working component, so its absence is `TODAY` (P2), not `PLAN`. Contrast a missing, non-functional cover or label, which stays `PLAN` (P3).
 
 ## 9. Labelling procedure (summary)
 
@@ -174,3 +190,5 @@ Note on example 20: non-maintenance requests get `PLAN` because they carry no op
 |---|---|---|
 | 0.1 | 2026-11-19 | First draft for review |
 | 1.0 | 2026-11-19 | Approved without changes |
+| 1.1 | 2026-11-19 | Added P2 broken/damaged/u/s vs worn/routine distinction; added relief/safety valve, fire suppression/alarm, emergency lighting, reversing alarm, horn, mirror/camera, and access-hazard P1 safety triggers; clarified section 5 to route by named component even with unknown cause; added tie-break rule 8 for calibrate/program/set/adjust of sensors, controllers or brake systems; added worked examples 25-28 |
+| 1.2 | 2026-11-19 | Added P2 functional-part-missing/loose/coming-off vs non-functional-cover/trim/label distinction; added loose/missing wheel nuts or studs on mobile equipment as a P1 safety trigger; narrowed tie-break rule 8 to electronic brake controls/sensors/calibration only, with plain mechanical brake adjustment routed to MECHANICAL; added worked examples 29-30 |
