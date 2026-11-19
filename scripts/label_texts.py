@@ -14,7 +14,7 @@ from anthropic import Anthropic, BadRequestError
 from dotenv import load_dotenv
 
 RULEBOOK_PATH = Path("docs/labelling-rulebook.md")
-RULEBOOK_VERSION = "1.2"
+RULEBOOK_VERSION = "1.3"
 
 PRIORITIES = ["STOP_NOW", "TODAY", "PLAN", "MONITOR"]
 ROUTES = [
@@ -45,7 +45,7 @@ RULE_CODES = {
     "TB5": "Tie-break rule 5: lubrication vs leak repair",
     "TB6": "Tie-break rule 6: leak location decides P1 vs P2",
     "TB7": "Tie-break rule 7: still unclear after rules 1-6, route ESCALATE",
-    "TB8": "Tie-break rule 8: calibrate/program/set/adjust applies only to electronic brake controls, sensors or calibration -> INSTRUMENTATION_CONTROLS; a plain mechanical brake adjustment goes to MECHANICAL",
+    "TB8": "Tie-break rule 8: calibrate/program/set/adjust a sensor, controller or electronic brake control -> INSTRUMENTATION_CONTROLS; a purely mechanical adjustment goes to the owner team, usually MECHANICAL",
 }
 
 MAX_RETRIES = 3

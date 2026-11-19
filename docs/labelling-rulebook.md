@@ -1,6 +1,6 @@
 # mwo-triage Labelling Rulebook
 
-Version: 1.2 (approved 2026-11-19)
+Version: 1.3 (approved 2026-11-19)
 Applies to: every example in the mwo-triage dataset, real or synthetic.
 
 ## 1. Purpose
@@ -92,6 +92,9 @@ Route by **the component or system that must be repaired**, not by the machine n
 ## 5. When to route `ESCALATE`
 
 If the text names a component or system, route to its owner team even when the cause of the fault is unknown. Use `ESCALATE` only when no component and no discipline-specific symptom is given, or it is not a maintenance job:
+
+Here a component means a specific part (for example a hose reel, alternator, seal or bearing). A whole machine or major assembly (for example a CNC, conveyor, spindle or engine) with a symptom that could belong to several disciplines and no other clue still goes to `ESCALATE`; see worked example 10.
+
 - **Too vague:** no component or symptom ("machine not working", "check machine 4", "problem with line 2")
 - **Several disciplines, equally likely,** and the text doesn't say which ("conveyor stopped" with no cause or clue)
 - **Not a maintenance job:** IT, cleaning, housekeeping, HR, purchasing, a general question
@@ -110,7 +113,7 @@ Apply these in order when the labels are unclear.
 5. **Lubrication or leak repair?** Adding, changing or applying lubricant, or a lube system fault → `LUBRICATION`. A leak that needs a seal, gasket or hose repaired → the owner of that component (`MECHANICAL` for a gearbox seal, `HYDRAULIC_PNEUMATIC` for a hydraulic hose).
 6. **Leak location decides between P1 and P2.** A leak alone is `TODAY`. A leak that is spraying, bursting, on a hot surface, near ignition or in a people area is `STOP_NOW`.
 7. **Still unclear after rules 1–6:** route `ESCALATE` and note the reason in the review log. If this happens repeatedly for the same kind of text, update this rulebook.
-8. **Calibrate, program, set or adjust?** Calibrating, programming, setting or adjusting **only applies to electronic brake controls, sensors or calibration** → `INSTRUMENTATION_CONTROLS`. A plain mechanical brake adjustment (pads, slack, clearances, or "needs adjusting" with no electronic wording) → `MECHANICAL`, the owner team.
+8. **Calibrate, program, set or adjust?** Calibrating, programming, setting or adjusting a sensor, controller or electronic brake control → `INSTRUMENTATION_CONTROLS`. A purely mechanical adjustment (brake pads, slack, clearances, belt tension, or "needs adjusting" with no electronic wording) → the owner team, usually `MECHANICAL`.
 
 ## 7. Common abbreviations
 
@@ -192,3 +195,4 @@ Note on example 29: a bucket tooth is a functional part of a working component, 
 | 1.0 | 2026-11-19 | Approved without changes |
 | 1.1 | 2026-11-19 | Added P2 broken/damaged/u/s vs worn/routine distinction; added relief/safety valve, fire suppression/alarm, emergency lighting, reversing alarm, horn, mirror/camera, and access-hazard P1 safety triggers; clarified section 5 to route by named component even with unknown cause; added tie-break rule 8 for calibrate/program/set/adjust of sensors, controllers or brake systems; added worked examples 25-28 |
 | 1.2 | 2026-11-19 | Added P2 functional-part-missing/loose/coming-off vs non-functional-cover/trim/label distinction; added loose/missing wheel nuts or studs on mobile equipment as a P1 safety trigger; narrowed tie-break rule 8 to electronic brake controls/sensors/calibration only, with plain mechanical brake adjustment routed to MECHANICAL; added worked examples 29-30 |
+| 1.3 | 2026-11-19 | Reworded tie-break rule 8 for clarity (sensor/controller/electronic brake control vs purely mechanical adjustment); clarified section 5's definition of "component" as a specific part, with a whole machine or major assembly and an ambiguous symptom still going to ESCALATE (see worked example 10) |
