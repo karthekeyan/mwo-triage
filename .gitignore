@@ -7,3 +7,4 @@ data/raw/
 outputs/
 models/
 data/interim/*.jsonl
+data/interim/*.json
