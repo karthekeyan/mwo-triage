@@ -35,6 +35,7 @@ It is a portfolio piece, published publicly on Hugging Face (account `karthe05`,
 - Do not uninstall packages without checking for shared files first. (cuDNN for cu11 and cu12 share `libcudnn.so.9`; removing one broke the other once.)
 - The Wi-Fi and SSH link are unreliable: run anything longer than a couple of minutes (downloads, labelling, training) in the background with `nohup ... > <log> 2>&1 &` and check it with `tail`.
 - Git 2.25: no `git init -b`. Push to `origin main`.
+- **No script may call the paid Anthropic API without the user's explicit approval for that specific run, with an estimated cost.** The API credit is $0; in-session work under the Pro subscription is the default.
 
 ## 4. Data rules
 
