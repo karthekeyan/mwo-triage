@@ -1,0 +1,201 @@
+# Plan for the ~2,500 synthetic train-pool work-order texts, approved
+# 2026-11-19. Written by hand (Claude, in-session), no API calls.
+#
+# Three blocks:
+#   topup     - top up today's thinnest real priority x route cells.
+#   factory   - factory-equipment texts spread evenly across all 24 cells.
+#   hard_case - boundary cases, one per tricky rulebook rule/section.
+#
+# scripts/synthetic_tools.py reads this file to hand out work ("next"),
+# validate progress ("check"), and dedup the result ("dedup").
+
+version: 1
+seed: 42
+rulebook_version: "1.3"
+total_to_generate: 2504  # 904 (topup) + 1100 (factory) + 500 (hard_case)
+
+priorities: [STOP_NOW, TODAY, PLAN, MONITOR]
+routes: [MECHANICAL, ELECTRICAL, HYDRAULIC_PNEUMATIC, INSTRUMENTATION_CONTROLS, LUBRICATION, ESCALATE]
+
+# ---------------------------------------------------------------- topup
+# Counts existing real train-pool examples already in real_labelled.jsonl
+# for each cell (from the priority x route cross-table), tops each up to
+# its target. to_generate = target - existing_real.
+topup:
+  description: >
+    Thin priority/route cells in the real train pool, topped up to a
+    target count. Write plain, realistic maintenance texts for these
+    cells -- no fixed equipment list, use whatever equipment fits.
+  total_to_generate: 904
+  cells:
+    - priority: STOP_NOW
+      route: LUBRICATION
+      existing_real: 1
+      target: 80
+      to_generate: 79
+    - priority: STOP_NOW
+      route: ESCALATE
+      existing_real: 40
+      target: 100
+      to_generate: 60
+    - priority: MONITOR
+      route: ESCALATE
+      existing_real: 57
+      target: 100
+      to_generate: 43
+    - priority: STOP_NOW
+      route: INSTRUMENTATION_CONTROLS
+      existing_real: 26
+      target: 150
+      to_generate: 124
+    - priority: STOP_NOW
+      route: HYDRAULIC_PNEUMATIC
+      existing_real: 48
+      target: 150
+      to_generate: 102
+    - priority: STOP_NOW
+      route: ELECTRICAL
+      existing_real: 66
+      target: 150
+      to_generate: 84
+    - priority: MONITOR
+      route: INSTRUMENTATION_CONTROLS
+      existing_real: 13
+      target: 150
+      to_generate: 137
+    - priority: MONITOR
+      route: LUBRICATION
+      existing_real: 46
+      target: 150
+      to_generate: 104
+    - priority: MONITOR
+      route: ELECTRICAL
+      existing_real: 60
+      target: 150
+      to_generate: 90
+    - priority: MONITOR
+      route: HYDRAULIC_PNEUMATIC
+      existing_real: 69
+      target: 150
+      to_generate: 81
+
+# ---------------------------------------------------------------- factory
+# Factory-equipment texts (CNC, presses, robots, conveyors, compressors,
+# paint shops, ...), spread roughly evenly across all 24 priority x route
+# cells regardless of current real counts, so the model sees this
+# equipment family under every label combination.
+factory:
+  description: >
+    Factory/plant equipment texts, ~46 per cell across all 24 cells
+    (20 cells at 46, 4 at 45, to total 1100). Cycle through the equipment
+    list for variety within a cell rather than reusing one item.
+  total_to_generate: 1100
+  equipment:
+    - CNC lathe
+    - vertical machining centre
+    - hydraulic press
+    - stamping press
+    - injection moulding machine
+    - welding robot
+    - robot cell
+    - belt conveyor
+    - AGV
+    - air compressor
+    - chiller
+    - cooling tower
+    - paint booth
+    - curing oven
+    - furnace
+    - die casting machine
+    - EOT crane
+    - forklift
+    - DG set
+    - MCC panel
+    - transformer
+    - centrifugal pump
+    - gearbox
+    - packaging machine
+  cells:
+    - {priority: STOP_NOW, route: MECHANICAL, to_generate: 46}
+    - {priority: STOP_NOW, route: ELECTRICAL, to_generate: 46}
+    - {priority: STOP_NOW, route: HYDRAULIC_PNEUMATIC, to_generate: 46}
+    - {priority: STOP_NOW, route: INSTRUMENTATION_CONTROLS, to_generate: 46}
+    - {priority: STOP_NOW, route: LUBRICATION, to_generate: 46}
+    - {priority: STOP_NOW, route: ESCALATE, to_generate: 46}
+    - {priority: TODAY, route: MECHANICAL, to_generate: 46}
+    - {priority: TODAY, route: ELECTRICAL, to_generate: 46}
+    - {priority: TODAY, route: HYDRAULIC_PNEUMATIC, to_generate: 46}
+    - {priority: TODAY, route: INSTRUMENTATION_CONTROLS, to_generate: 46}
+    - {priority: TODAY, route: LUBRICATION, to_generate: 46}
+    - {priority: TODAY, route: ESCALATE, to_generate: 46}
+    - {priority: PLAN, route: MECHANICAL, to_generate: 46}
+    - {priority: PLAN, route: ELECTRICAL, to_generate: 46}
+    - {priority: PLAN, route: HYDRAULIC_PNEUMATIC, to_generate: 46}
+    - {priority: PLAN, route: INSTRUMENTATION_CONTROLS, to_generate: 46}
+    - {priority: PLAN, route: LUBRICATION, to_generate: 46}
+    - {priority: PLAN, route: ESCALATE, to_generate: 46}
+    - {priority: MONITOR, route: MECHANICAL, to_generate: 46}
+    - {priority: MONITOR, route: ELECTRICAL, to_generate: 46}
+    - {priority: MONITOR, route: HYDRAULIC_PNEUMATIC, to_generate: 45}
+    - {priority: MONITOR, route: INSTRUMENTATION_CONTROLS, to_generate: 45}
+    - {priority: MONITOR, route: LUBRICATION, to_generate: 45}
+    - {priority: MONITOR, route: ESCALATE, to_generate: 45}
+
+# -------------------------------------------------------------- hard_case
+# One slot group per tricky rulebook rule, demonstrating the boundary the
+# rule draws. Each text should still get a real target_priority and
+# target_route reflecting the correct side of the boundary -- there is no
+# single fixed cell per theme, since the point is the contrast.
+hard_case:
+  description: >
+    Hard cases split evenly across 8 rulebook themes (4 at 63, 4 at 62,
+    to total 500). Half of each theme's examples should land on each side
+    of the boundary the theme is testing.
+  total_to_generate: 500
+  themes:
+    - name: leak_location
+      rule: TB6
+      to_generate: 63
+      note: Leak on a hot surface/spraying/people area (STOP_NOW) vs a plain steady leak (TODAY).
+    - name: faulty_reading_vs_real_fault
+      rule: TB4
+      to_generate: 63
+      note: Sensor/gauge reading wrong, erratic or missing (INSTRUMENTATION_CONTROLS) vs a believed real-fault reading (route by component).
+    - name: lube_job_vs_leak_repair
+      rule: TB5
+      to_generate: 63
+      note: Adding/changing lubricant or a lube-system fault (LUBRICATION) vs a seal/gasket/hose leak needing repair (owner team).
+    - name: named_part_vs_escalate
+      rule: section_5
+      to_generate: 63
+      note: A specific named component routes to its owner team even with unknown cause, vs a whole machine/major assembly with an ambiguous symptom (ESCALATE).
+    - name: damaged_vs_worn
+      rule: P2_P3
+      to_generate: 62
+      note: Broken/damaged/cracked/u-s (TODAY) vs worn/due-for-replacement/routine (PLAN).
+    - name: missing_functional_part_vs_cover
+      rule: P2_P3
+      to_generate: 62
+      note: A missing/loose functional part on a working component (TODAY) vs a missing/loose non-functional cover/trim/label (PLAN).
+    - name: urgency_words_ignored
+      rule: section_2
+      to_generate: 62
+      note: Urgency language ("URGENT", "ASAP", "!!!") on an otherwise minor defect -- priority follows the described condition, not the urgency words.
+    - name: calibration_vs_mechanical_adjustment
+      rule: TB8
+      to_generate: 62
+      note: Calibrating/programming/setting a sensor, controller or electronic brake control (INSTRUMENTATION_CONTROLS) vs a purely mechanical adjustment (owner team, usually MECHANICAL).
+
+# ------------------------------------------------------------------ style
+style:
+  word_count_min: 3
+  word_count_max: 15
+  messy_fraction: 0.70
+  clean_fraction: 0.30
+  messy_features:
+    - abbreviations from docs/labelling-rulebook.md section 7 (c/o, u/s, o/s, hyd, elec, lhs/rhs, fr/rr, brg, eng, p/m, insp, repl/rplc, lkg, temp, vib, ad)
+    - ALL CAPS or inconsistent casing
+    - typos and dropped words, as in real shorthand work orders
+    - made-up asset codes shaped like the real ones (two letters + three digits, e.g. "KT402"), never real IDs
+  clean_features:
+    - full words, normal capitalisation, no abbreviations
