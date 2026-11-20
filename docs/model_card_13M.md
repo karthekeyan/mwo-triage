@@ -16,7 +16,19 @@ tags:
 
 ## Example
 
-*Placeholder — to be filled with real model output during packaging, once the inference wrapper (section 8) exists.*
+Real output from the packaged model, balanced mode (`release/mwo-triage-13M`, section 8):
+
+| text | priority | priority_confidence | route | route_confidence |
+|---|---|---|---|---|
+| "Hyd hose burst on press 3, oil spraying across walkway" | STOP_NOW | 0.96 | HYDRAULIC_PNEUMATIC | 0.95 |
+| "c/o position 3 tyre" | PLAN | 0.96 | MECHANICAL | 0.97 |
+| "Gearbox oil level low, top up" | PLAN | 0.96 | LUBRICATION | 0.95 |
+
+### Borderline case
+
+"Hydraulic press 3 leaking oil near main cylinder, pressure dropping during cycle" → **STOP_NOW** (priority_confidence 0.54), **HYDRAULIC_PNEUMATIC** (route_confidence 0.99).
+
+The rulebook answer here is `TODAY` (a leak that isn't spraying, on a hot surface or in a people area, with the machine still degraded-but-running, not stopped) — the model gets it wrong, but its priority_confidence (0.54, barely above the 3-way tie point for 4 classes) says so itself: this is exactly the kind of low-confidence call that should be flagged for a human planner to check rather than acted on automatically. A high-confidence wrong call would be a worse failure mode than this one; use priority_confidence this way — as a signal of how much to trust the label, not just which label won.
 
 ## 1. Summary
 
@@ -159,7 +171,27 @@ Full fine-tune (no LoRA/QLoRA) of `google/electra-small-discriminator` with two 
 
 ## 8. How to use
 
-*Placeholder — the packaging and inference format (e.g. a `transformers`-compatible wrapper, a custom `pipeline`, or raw PyTorch checkpoint loading) has not been decided yet. This section will be filled in before publishing.*
+```
+pip install torch transformers safetensors huggingface_hub
+```
+
+```python
+from huggingface_hub import hf_hub_download
+import importlib.util
+
+inference_path = hf_hub_download(repo_id="karthe05/mwo-triage-13M", filename="inference.py")
+spec = importlib.util.spec_from_file_location("inference", inference_path)
+inference = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(inference)
+TriageModel = inference.TriageModel
+
+model = TriageModel.from_pretrained("karthe05/mwo-triage-13M")
+texts = ["Hyd hose burst on press 3, oil spraying across walkway"]
+balanced = model.predict(texts, mode="balanced")
+safety = model.predict(texts, mode="safety")
+```
+
+`predict` returns one dict per input text, with: `priority` and `route` (the predicted labels), `priority_confidence` and `route_confidence` (each head's calibrated top-class probability), and `mode` (echoing back whichever of `"balanced"` or `"safety"` was requested). In `"safety"` mode, `priority` is forced to `STOP_NOW` whenever its calibrated probability is at or above this checkpoint's fitted threshold (t=0.1596), even if another class has a higher raw probability; `route` and its confidence are unaffected by the mode.
 
 ## 9. Credits and citations
 
