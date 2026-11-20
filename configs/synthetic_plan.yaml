@@ -279,3 +279,33 @@ generation_rules:
     contactor/starter/isolator) as well as the priority cue. A bare
     "pump"/"line"/"motor"/"seal" alone is not enough once the more
     specific word next to it has been cut for length.
+  - >-
+    Added 2026-11-20 after a 30-text sample review found a coolant/water
+    line labelled HYDRAULIC_PNEUMATIC and spraying/bursting alone treated
+    as a P1 trigger for it: coolant, water and steam are not hydraulic or
+    pneumatic fluid (rulebook section 4's HYDRAULIC_PNEUMATIC row is
+    hydraulic oil and compressed air only), so a coolant/water/steam line
+    spraying or bursting does NOT by itself trigger STOP_NOW and does NOT
+    route HYDRAULIC_PNEUMATIC -- route it by the component (usually
+    MECHANICAL) and give it TODAY unless the leak is also onto a hot
+    surface, an ignition source, or a walkway/area where people are (the
+    generic leak-location trigger, which applies to any fluid).
+  - >-
+    Added 2026-11-20, same review: a discipline-specific symptom (an
+    "elec fault", a "hyd fault"/leak, a named sensor/gauge/PLC fault,
+    etc.) routes to that discipline (ELECTRICAL, HYDRAULIC_PNEUMATIC,
+    INSTRUMENTATION_CONTROLS, ...), never ESCALATE -- rulebook section 5
+    only escalates when the text gives NO component and no
+    discipline-specific symptom, or names a whole machine/major assembly
+    with a symptom that could equally be any discipline. Naming the
+    discipline directly (elec/hyd/a specific sensor or component) is
+    already more specific than that and must route there.
+  - >-
+    Reminder (already in force, repeated here after the same review):
+    (a) no label-revealing qualifiers -- never write words that name or
+    imply the target priority/route directly (e.g. "safety issue",
+    "low priority", "electrical problem"); describe the condition only,
+    per rulebook section 2. (b) no MONITOR closing phrase may repeat more
+    than 5 times across the whole file (see the chunk-10 rule above) --
+    check data/interim/synthetic_raw.jsonl's running phrase counts before
+    saving each new chunk, not just the new chunk's own phrases.
