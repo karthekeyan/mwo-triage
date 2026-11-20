@@ -273,3 +273,17 @@ model this small has less spare capacity to absorb a 768-hidden teacher's
 softened targets on top of its own fit to the hard labels. Recommendation:
 carry the distilled checkpoint forward for the Small model, and the
 passB-default (a) checkpoint (not distilled) for the Tiny model.
+
+## 6. Final model picks (2026-11-20)
+
+Locked in for release:
+
+| published name | source run | checkpoint | encoder params |
+|---|---|---|---|
+| `mwo-triage-13M` (Small) | `electra_distilled` | `outputs/bakeoff/electra_distilled/best_model.pt` | 13,483,008 |
+| `mwo-triage-5M` (Tiny) | `L4_a_earlystop_passb` | `outputs/bakeoff/L4_a_earlystop_passb/best_model.pt` | 4,782,464 |
+
+These are val-selected per sections 2-5 above; `data/processed/test.jsonl`
+has still never been loaded. Final evaluation against test (frozen
+baselines, calibration, STOP_NOW threshold, test-set metrics) is tracked
+separately in `docs/evaluation.md`.
