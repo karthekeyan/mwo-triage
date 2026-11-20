@@ -158,7 +158,7 @@ Full fine-tune (no LoRA/QLoRA) of `google/bert_uncased_L-4_H-128_A-2` with two i
 - **Weakest on the shortest texts**: both priority and route macro-F1 are lowest on the ≤4-word bucket (0.7942 / 0.7701) and improve on longer texts (0.8373-0.8346 priority, 0.8042-0.8261 route for 5-7 and ≥8 words) — the opposite pattern from `mwo-triage-13M`, whose longest-text bucket is its weakest. The ≥8-word bucket has a small test support (n=86).
 - Route performance is weaker on `maintie` texts than `maintnorm` texts (0.7643 vs. 0.8076 macro-F1).
 - STOP_NOW itself is the hardest priority class even in balanced mode (F1 0.6368 vs. 0.84-0.92 for the other three priority classes).
-- Smaller than `mwo-triage-13M` on every headline metric (priority macro-F1 0.8265 vs. 0.8486, route macro-F1 0.8008 vs. 0.8219); choose this model when latency or footprint, not peak accuracy, is the constraint.
+- Lower than `mwo-triage-13M` on priority and route macro-F1 (0.8265 vs. 0.8486; 0.8008 vs. 0.8219) and on balanced-mode STOP_NOW recall; choose this model when latency or footprint, not peak accuracy, is the constraint.
 
 ## 8. How to use
 
