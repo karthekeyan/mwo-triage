@@ -16,12 +16,7 @@ tags:
 
 ## Example
 
-*Placeholder — to be filled with real model output during packaging, once the inference wrapper (section 8) exists. Shown here only to illustrate the shape of the output.*
-
-```
-Input:  "AV277 Rep brake temp warning fault"
-Output: priority = STOP_NOW (p = 0.00), route = INSTRUMENTATION_CONTROLS (p = 0.00)
-```
+*Placeholder — to be filled with real model output during packaging, once the inference wrapper (section 8) exists.*
 
 ## 1. Summary
 
@@ -136,7 +131,7 @@ After adjudication, a small number of documented rule overrides were applied on 
 
 **No human domain-expert review** was done on any label; quality comes from the rulebook, the two-pass agreement process, the documented rule overrides above, and the limitations documented here and in the rulebook itself.
 
-Synthetic data: 2,489 synthetic factory work orders were generated in-session (via the Anthropic API, under the user's approval) and labelled the same way; 1,814 were kept after a blind relabelling check found 72.9% agreement with the original label. Synthetic examples are train-only.
+Synthetic data: 2,489 synthetic factory work orders were written in-session by Claude Code (claude-sonnet-5, under a Claude Pro subscription, with no API calls) to a target label and style plan (`configs/synthetic_plan.yaml`); a separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
 
 Final split sizes: train 11,011 (9,197 real + 1,814 synthetic), val 800, test 1,500 — val and test are real text only.
 
