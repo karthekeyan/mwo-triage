@@ -7,6 +7,15 @@ Encoder + two linear heads (priority: 4 classes, route: 6 classes) on the
 heads' cross-entropy losses. AdamW with a linear warmup (10% of steps)
 then linear decay to 0. fp16 autocast on CUDA. Seed 42 by default.
 
+--early-stopping-patience N stops training once val mean macro-F1 hasn't
+improved for N consecutive epochs (the warmup/decay schedule is still
+computed against the full --epochs budget, since that's the planned
+upper bound).
+
+--class-weight-priority weights the priority head's cross-entropy by
+1/sqrt(class frequency) in train, normalised so the four class weights
+average to 1 (the route head's loss is never weighted).
+
 Evaluates on data/processed/val.jsonl every epoch and keeps the
 checkpoint with the best val macro-F1 (mean of priority macro-F1 and
 route macro-F1). data/processed/test.jsonl is never loaded by this
@@ -27,10 +36,12 @@ Usage:
 
 import argparse
 import json
+import math
 import os
 import random
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
@@ -39,12 +50,12 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import yaml  # noqa: E402
-from sklearn.metrics import accuracy_score, f1_score, recall_score  # noqa: E402
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from mwo_triage.classifier import MultiHeadClassifier, MwoDataset  # noqa: E402
+from mwo_triage.classifier import NUM_PRIORITY_CLASSES, MultiHeadClassifier, MwoDataset  # noqa: E402
 
 LABELS_PATH = Path("configs/labels.yaml")
 TRAIN_PATH = Path("data/processed/train.jsonl")
@@ -66,13 +77,24 @@ def parse_args():
     p.add_argument("--run-name", required=True)
     p.add_argument("--lr", type=float, required=True)
     p.add_argument("--freeze-encoder", action="store_true")
-    p.add_argument("--epochs", type=int, default=10)
+    p.add_argument("--epochs", type=int, default=10, help="Maximum epochs (upper bound for the LR schedule too)")
+    p.add_argument("--early-stopping-patience", type=int, default=None,
+                    help="Stop once val mean macro-F1 hasn't improved for this many epochs")
+    p.add_argument("--class-weight-priority", action="store_true",
+                    help="Weight the priority head's cross-entropy by 1/sqrt(train class frequency), mean-1 normalised")
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--max-length", type=int, default=32)
     p.add_argument("--warmup-ratio", type=float, default=0.1)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output-dir", default=str(OUTPUT_ROOT))
     return p.parse_args()
+
+
+def priority_class_weights(train_dataset, num_classes):
+    counts = Counter(r["priority_id"] for r in train_dataset.records)
+    raw = [1.0 / math.sqrt(counts.get(c, 0)) for c in range(num_classes)]
+    mean_raw = sum(raw) / len(raw)
+    return [w / mean_raw for w in raw]
 
 
 def evaluate(model, loader, device, stop_now_id):
@@ -100,6 +122,9 @@ def evaluate(model, loader, device, stop_now_id):
     stop_now_recall = recall_score(
         priority_true, priority_pred, labels=[stop_now_id], average="macro", zero_division=0
     )
+    stop_now_precision = precision_score(
+        priority_true, priority_pred, labels=[stop_now_id], average="macro", zero_division=0
+    )
 
     return {
         "val_priority_macro_f1": priority_macro_f1,
@@ -108,6 +133,7 @@ def evaluate(model, loader, device, stop_now_id):
         "val_priority_acc": priority_acc,
         "val_route_acc": route_acc,
         "val_stop_now_recall": stop_now_recall,
+        "val_stop_now_precision": stop_now_precision,
     }
 
 
@@ -142,7 +168,16 @@ def main():
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
 
     scaler = torch.amp.GradScaler("cuda", enabled=use_fp16)
-    loss_fn = torch.nn.CrossEntropyLoss()
+
+    if args.class_weight_priority:
+        weights = priority_class_weights(train_dataset, NUM_PRIORITY_CLASSES)
+        print(f"[{args.run_name}] priority class weights (1/sqrt(freq), mean-1): "
+              f"{[round(w, 4) for w in weights]}", flush=True)
+        priority_weight_tensor = torch.tensor(weights, dtype=torch.float32, device=device)
+    else:
+        priority_weight_tensor = None
+    priority_loss_fn = torch.nn.CrossEntropyLoss(weight=priority_weight_tensor)
+    route_loss_fn = torch.nn.CrossEntropyLoss()
 
     run_dir = Path(args.output_dir) / args.run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -150,6 +185,8 @@ def main():
     epoch_logs = []
     best_mean_f1 = -1.0
     best_epoch = None
+    epochs_without_improvement = 0
+    stopped_early = False
     run_start = time.time()
 
     for epoch in range(1, args.epochs + 1):
@@ -168,7 +205,7 @@ def main():
             optimizer.zero_grad()
             with torch.amp.autocast("cuda", enabled=use_fp16):
                 priority_logits, route_logits = model(input_ids, attention_mask, token_type_ids)
-                loss = loss_fn(priority_logits, priority_id) + loss_fn(route_logits, route_id)
+                loss = priority_loss_fn(priority_logits, priority_id) + route_loss_fn(route_logits, route_id)
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -191,6 +228,7 @@ def main():
             f"priority_acc={val_metrics['val_priority_acc']:.4f} "
             f"route_acc={val_metrics['val_route_acc']:.4f} "
             f"stop_now_recall={val_metrics['val_stop_now_recall']:.4f} "
+            f"stop_now_precision={val_metrics['val_stop_now_precision']:.4f} "
             f"({epoch_time:.1f}s)",
             flush=True,
         )
@@ -198,7 +236,16 @@ def main():
         if val_metrics["val_mean_macro_f1"] > best_mean_f1:
             best_mean_f1 = val_metrics["val_mean_macro_f1"]
             best_epoch = epoch
+            epochs_without_improvement = 0
             torch.save(model.state_dict(), run_dir / "best_model.pt")
+        else:
+            epochs_without_improvement += 1
+
+        if args.early_stopping_patience is not None and epochs_without_improvement >= args.early_stopping_patience:
+            stopped_early = True
+            print(f"[{args.run_name}] early stopping at epoch {epoch} "
+                  f"(no val mean macro-F1 improvement for {args.early_stopping_patience} epochs)", flush=True)
+            break
 
     total_time = time.time() - run_start
 
@@ -207,7 +254,11 @@ def main():
         "run_name": args.run_name,
         "lr": args.lr,
         "freeze_encoder": args.freeze_encoder,
-        "epochs_run": args.epochs,
+        "class_weight_priority": args.class_weight_priority,
+        "early_stopping_patience": args.early_stopping_patience,
+        "stopped_early": stopped_early,
+        "max_epochs": args.epochs,
+        "epochs_run": len(epoch_logs),
         "batch_size": args.batch_size,
         "max_length": args.max_length,
         "seed": args.seed,
