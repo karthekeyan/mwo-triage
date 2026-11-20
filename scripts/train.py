@@ -5,7 +5,12 @@ after every epoch.
 Encoder + two linear heads (priority: 4 classes, route: 6 classes) on the
 [CLS] token (src/mwo_triage/classifier.py). Loss is the sum of the two
 heads' cross-entropy losses. AdamW with a linear warmup (10% of steps)
-then linear decay to 0. fp16 autocast on CUDA. Seed 42 by default.
+then linear decay to 0. fp16 autocast on CUDA by default; --amp-dtype
+bf16 switches to bf16 (no loss scaling needed) for encoders whose custom
+autograd ops don't play well with fp16 GradScaler (e.g. DeBERTa-v2/v3's
+disentangled-attention kernels raise "Attempting to unscale FP16
+gradients"); --amp-dtype none disables autocast entirely. Seed 42 by
+default.
 
 --early-stopping-patience N stops training once val mean macro-F1 hasn't
 improved for N consecutive epochs (the warmup/decay schedule is still
@@ -15,6 +20,13 @@ upper bound).
 --class-weight-priority weights the priority head's cross-entropy by
 1/sqrt(class frequency) in train, normalised so the four class weights
 average to 1 (the route head's loss is never weighted).
+
+--distill-teacher-probs PATH switches each head's loss to knowledge
+distillation: --distill-alpha (default 0.5) times hard-label
+cross-entropy, plus (1 - alpha) times KL divergence from the student's
+temperature-softened distribution to the teacher's (scripts/
+export_teacher_probs.py), scaled by temperature^2. Not combined with
+--class-weight-priority.
 
 Evaluates on data/processed/val.jsonl every epoch and keeps the
 checkpoint with the best val macro-F1 (mean of priority macro-F1 and
@@ -82,10 +94,15 @@ def parse_args():
                     help="Stop once val mean macro-F1 hasn't improved for this many epochs")
     p.add_argument("--class-weight-priority", action="store_true",
                     help="Weight the priority head's cross-entropy by 1/sqrt(train class frequency), mean-1 normalised")
+    p.add_argument("--distill-teacher-probs", default=None,
+                    help="Path to a teacher soft-probabilities jsonl (scripts/export_teacher_probs.py) to distill from")
+    p.add_argument("--distill-alpha", type=float, default=0.5, help="Weight on hard-label CE (1-alpha on the KD term)")
+    p.add_argument("--distill-temperature", type=float, default=2.0)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--max-length", type=int, default=32)
     p.add_argument("--warmup-ratio", type=float, default=0.1)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--amp-dtype", choices=["fp16", "bf16", "none"], default="fp16")
     p.add_argument("--output-dir", default=str(OUTPUT_ROOT))
     return p.parse_args()
 
@@ -146,10 +163,13 @@ def main():
     stop_now_id = labels_cfg["priority"]["STOP_NOW"]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    use_fp16 = device.type == "cuda"
+    amp_enabled = device.type == "cuda" and args.amp_dtype != "none"
+    amp_dtype = {"fp16": torch.float16, "bf16": torch.bfloat16}.get(args.amp_dtype, torch.float32)
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_id, cache_dir=args.cache_dir, local_files_only=True)
-    train_dataset = MwoDataset(TRAIN_PATH, tokenizer, max_length=args.max_length)
+    train_dataset = MwoDataset(
+        TRAIN_PATH, tokenizer, max_length=args.max_length, teacher_probs_path=args.distill_teacher_probs
+    )
     val_dataset = MwoDataset(VAL_PATH, tokenizer, max_length=args.max_length)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
@@ -167,7 +187,7 @@ def main():
     warmup_steps = int(args.warmup_ratio * total_steps)
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
 
-    scaler = torch.amp.GradScaler("cuda", enabled=use_fp16)
+    scaler = torch.amp.GradScaler("cuda", enabled=(amp_enabled and args.amp_dtype == "fp16"))
 
     if args.class_weight_priority:
         weights = priority_class_weights(train_dataset, NUM_PRIORITY_CLASSES)
@@ -178,6 +198,8 @@ def main():
         priority_weight_tensor = None
     priority_loss_fn = torch.nn.CrossEntropyLoss(weight=priority_weight_tensor)
     route_loss_fn = torch.nn.CrossEntropyLoss()
+    distilling = args.distill_teacher_probs is not None
+    kd_loss_fn = torch.nn.KLDivLoss(reduction="batchmean")
 
     run_dir = Path(args.output_dir) / args.run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -203,9 +225,27 @@ def main():
             route_id = batch["route_id"].to(device)
 
             optimizer.zero_grad()
-            with torch.amp.autocast("cuda", enabled=use_fp16):
+            with torch.amp.autocast("cuda", dtype=amp_dtype, enabled=amp_enabled):
                 priority_logits, route_logits = model(input_ids, attention_mask, token_type_ids)
-                loss = priority_loss_fn(priority_logits, priority_id) + route_loss_fn(route_logits, route_id)
+                if distilling:
+                    T = args.distill_temperature
+                    alpha = args.distill_alpha
+                    teacher_priority_probs = batch["teacher_priority_probs"].to(device)
+                    teacher_route_probs = batch["teacher_route_probs"].to(device)
+
+                    priority_hard = priority_loss_fn(priority_logits, priority_id)
+                    route_hard = route_loss_fn(route_logits, route_id)
+                    priority_kd = kd_loss_fn(
+                        torch.log_softmax(priority_logits / T, dim=-1), teacher_priority_probs
+                    ) * (T ** 2)
+                    route_kd = kd_loss_fn(
+                        torch.log_softmax(route_logits / T, dim=-1), teacher_route_probs
+                    ) * (T ** 2)
+
+                    loss = (alpha * priority_hard + (1 - alpha) * priority_kd
+                            + alpha * route_hard + (1 - alpha) * route_kd)
+                else:
+                    loss = priority_loss_fn(priority_logits, priority_id) + route_loss_fn(route_logits, route_id)
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -255,6 +295,9 @@ def main():
         "lr": args.lr,
         "freeze_encoder": args.freeze_encoder,
         "class_weight_priority": args.class_weight_priority,
+        "distill_teacher_probs": args.distill_teacher_probs,
+        "distill_alpha": args.distill_alpha if distilling else None,
+        "distill_temperature": args.distill_temperature if distilling else None,
         "early_stopping_patience": args.early_stopping_patience,
         "stopped_early": stopped_early,
         "max_epochs": args.epochs,
@@ -262,6 +305,7 @@ def main():
         "batch_size": args.batch_size,
         "max_length": args.max_length,
         "seed": args.seed,
+        "amp_dtype": args.amp_dtype,
         "epochs": epoch_logs,
         "best_epoch": best_epoch,
         "best_val_mean_macro_f1": best_mean_f1,

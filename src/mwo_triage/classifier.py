@@ -23,8 +23,12 @@ class MultiHeadClassifier(torch.nn.Module):
 
     def __init__(self, model_name_or_path, freeze_encoder=False, cache_dir=None, local_files_only=False):
         super().__init__()
+        # Some checkpoints (e.g. microsoft/deberta-v3-base) are stored in fp16;
+        # force fp32 master weights so the linear heads below always match the
+        # encoder's output dtype, and so our own fp16/bf16 autocast (not the
+        # checkpoint's storage dtype) controls precision during training.
         self.encoder = AutoModel.from_pretrained(
-            model_name_or_path, cache_dir=cache_dir, local_files_only=local_files_only
+            model_name_or_path, cache_dir=cache_dir, local_files_only=local_files_only, dtype=torch.float32
         )
         hidden_size = self.encoder.config.hidden_size
         self.priority_head = torch.nn.Linear(hidden_size, NUM_PRIORITY_CLASSES)
@@ -47,9 +51,15 @@ class MwoDataset(Dataset):
     """A tokenized data/processed/{split}.jsonl file. Each item carries
     input_ids, attention_mask, (token_type_ids if the tokenizer makes
     them), priority_id and route_id.
+
+    If teacher_probs_path is given (a jsonl of {uid, priority_soft_probs,
+    route_soft_probs}, as written by scripts/export_teacher_probs.py),
+    every item also carries teacher_priority_probs and
+    teacher_route_probs, for knowledge distillation. Every uid in this
+    dataset must then be present in that file.
     """
 
-    def __init__(self, path, tokenizer, max_length=32):
+    def __init__(self, path, tokenizer, max_length=32, teacher_probs_path=None):
         self.records = []
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
@@ -68,6 +78,26 @@ class MwoDataset(Dataset):
         self.attention_mask = encoded["attention_mask"]
         self.token_type_ids = encoded.get("token_type_ids")
 
+        self.teacher_priority_probs = None
+        self.teacher_route_probs = None
+        if teacher_probs_path is not None:
+            teacher_by_uid = {}
+            with open(teacher_probs_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        row = json.loads(line)
+                        teacher_by_uid[row["uid"]] = row
+            missing = [r["uid"] for r in self.records if r["uid"] not in teacher_by_uid]
+            if missing:
+                raise ValueError(f"{len(missing)} uids have no teacher probs, e.g. {missing[:5]}")
+            self.teacher_priority_probs = torch.tensor(
+                [teacher_by_uid[r["uid"]]["priority_soft_probs"] for r in self.records], dtype=torch.float32
+            )
+            self.teacher_route_probs = torch.tensor(
+                [teacher_by_uid[r["uid"]]["route_soft_probs"] for r in self.records], dtype=torch.float32
+            )
+
     def __len__(self):
         return len(self.records)
 
@@ -80,4 +110,7 @@ class MwoDataset(Dataset):
         }
         if self.token_type_ids is not None:
             item["token_type_ids"] = self.token_type_ids[idx]
+        if self.teacher_priority_probs is not None:
+            item["teacher_priority_probs"] = self.teacher_priority_probs[idx]
+            item["teacher_route_probs"] = self.teacher_route_probs[idx]
         return item

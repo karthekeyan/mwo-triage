@@ -224,3 +224,52 @@ remaining 6 misses are mostly the abbreviation-heavy ones (guard,
 camera, brake, "C/O", "LH&RH") noted in section 3 -- the fix widened
 real STOP_NOW coverage in train, but didn't specifically target
 abbreviation parsing, so those stay a known gap.
+
+## 5. Knowledge distillation (2026-11-20)
+
+Val only; `data/processed/test.jsonl` was never loaded. No API calls.
+
+1. Downloaded `microsoft/deberta-v3-base` to `~/models/`; confirmed MIT
+   licence from its model card (`license:mit` tag) before using it.
+   Its tokenizer needed `sentencepiece`, and its SentencePiece-to-fast
+   conversion needed `protobuf`; both installed with
+   `python -m pip install <pkg> "torch==2.6.0"` and `requirements.txt`
+   refreshed. Its checkpoint also loads in fp16 by default, which
+   conflicted with the fp32 classification heads under fp16 autocast
+   (`mat1 and mat2 must have the same dtype`) -- fixed by forcing fp32
+   master weights in `MultiHeadClassifier` regardless of a checkpoint's
+   stored dtype (`src/mwo_triage/classifier.py`), so our own autocast
+   dtype, not the checkpoint's storage dtype, controls precision.
+2. Fine-tuned it as the teacher: two-head setup, lr 3e-5, batch 32, max
+   length 32, up to 10 epochs, early stopping patience 3 on val mean
+   macro-F1 (`scripts/train.py`, which also gained a general
+   `--amp-dtype {fp16,bf16,none}` flag for this).
+3. `scripts/export_teacher_probs.py` saved the teacher's
+   temperature-2-softened probabilities for both heads on every train
+   text to `data/interim/teacher_train_probs.jsonl` (not committed).
+4. Retrained ELECTRA-small (lr 1e-4) and BERT L-4/H-128 (lr 3e-4) with a
+   distillation loss (`scripts/train.py --distill-teacher-probs`): per
+   head, 0.5 x hard-label cross-entropy + 0.5 x KL(student || teacher)
+   at temperature 2, scaled by T^2; same early stopping (patience 4, up
+   to 25 epochs) as the passB-default (a) runs they're compared against.
+   All four training runs took 779s total; log in
+   `outputs/bakeoff/distill.log` (not committed).
+
+| run | best epoch | val priority F1 | val route F1 | val mean F1 | STOP_NOW recall | STOP_NOW precision |
+|---|---|---|---|---|---|---|
+| teacher (`teacher_deberta`) | 10 | 0.8513 | 0.8747 | 0.8630 | 0.6176 | 0.7778 |
+| ELECTRA-small (a) passB-default | 8 | 0.8407 | 0.8487 | 0.8447 | 0.7059 | 0.6486 |
+| **ELECTRA-small distilled** | 11 | 0.8544 | 0.8719 | **0.8631** | **0.7353** | 0.6667 |
+| BERT L-4/H-128 (a) passB-default | 7 | 0.8326 | 0.8315 | 0.8320 | 0.7059 | 0.6400 |
+| BERT L-4/H-128 distilled | 5 | 0.8312 | 0.8273 | 0.8293 | 0.6618 | 0.6522 |
+
+**Takeaway**: distillation clearly helps the Small candidate -- ELECTRA-small
+distilled matches the much bigger (184M-parameter) DeBERTa-v3 teacher on
+mean macro-F1 and beats it on STOP_NOW recall, while staying under the
+30M-parameter ceiling. It's roughly neutral to slightly negative for the
+Tiny candidate (L-4/H-128, 4.8M parameters): mean F1 and STOP_NOW recall
+both dip slightly versus its passB-default (a) run, plausibly because a
+model this small has less spare capacity to absorb a 768-hidden teacher's
+softened targets on top of its own fit to the hard labels. Recommendation:
+carry the distilled checkpoint forward for the Small model, and the
+passB-default (a) checkpoint (not distilled) for the Tiny model.
