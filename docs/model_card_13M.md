@@ -123,11 +123,10 @@ Where the two passes disagreed:
 - **Test and validation pools**: every disagreement was adjudicated by a third pass applying the rulebook's tie-break rules. 11 of these were decided by Claude Fable 5.2 (batch mode); the remaining 300 were decided by Claude Code in-session (`claude-sonnet-5`).
 - **Training pool**: disagreements take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A; see `docs/experiment-log.md` sections 3-4).
 
-After adjudication, a small number of documented rule overrides were applied on top of whatever label survived, regardless of pool:
+A small number of documented rule overrides were also applied:
 
-- **31 brake/steering cases**: any work order naming a brake or steering fault, u/s, not working or failed on mobile equipment was set to `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights, which keep their original label (`scripts/apply_rulings.py`, `data/interim/rulings_overrides.jsonl`).
-- **Retarder ruling**: a retarder reported as u/s or not working on mobile equipment is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
-- **Hook ruling**: a bent or in-need-of-straightening tub hook is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
+- **31 brake/steering cases** (`scripts/apply_rulings.py`, `data/interim/rulings_overrides.jsonl`): applied to records where Pass A and Pass B already agreed, across all pools — any work order naming a brake or steering fault, u/s, not working or failed on mobile equipment was set to `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights, which keep their original label.
+- **Retarder and hook rulings**: applied separately, during the in-session adjudication of test/val disagreements above, as part of its consistency pass — a retarder reported as u/s or not working on mobile equipment, or a bent or in-need-of-straightening tub hook, is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
 
 **No human domain-expert review** was done on any label; quality comes from the rulebook, the two-pass agreement process, the documented rule overrides above, and the limitations documented here and in the rulebook itself.
 

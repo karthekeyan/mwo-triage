@@ -84,10 +84,9 @@ Mean word count: train 5.66, val 5.41, test 5.34.
 5. **Adjudication of disagreements**:
    - **Test and validation pools**: every disagreement was adjudicated by a third pass applying the rulebook's tie-break rules. 11 were decided by Claude Fable 5.2 (batch mode); the remaining 300 by Claude Code in-session (`claude-sonnet-5`).
    - **Training pool**: disagreements (1,225 of them) take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A).
-6. **Documented rule overrides**, applied on top of whatever label survived adjudication, regardless of pool (31 total; `scripts/apply_rulings.py`, `data/interim/rulings_overrides.jsonl`):
-   - **31 brake/steering cases**: a brake or steering fault, u/s, not working or failed on mobile equipment is `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights.
-   - **Retarder ruling**: a retarder reported as u/s or not working on mobile equipment is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
-   - **Hook ruling**: a bent or in-need-of-straightening tub hook is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
+6. **Documented rule overrides**:
+   - **31 brake/steering cases** (`scripts/apply_rulings.py`, `data/interim/rulings_overrides.jsonl`): applied to records where Pass A and Pass B already agreed, across all pools — a brake or steering fault, u/s, not working or failed on mobile equipment is `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights.
+   - **Retarder and hook rulings**: applied separately, during the in-session adjudication of test/val disagreements (step 5), as part of its consistency pass — a retarder reported as u/s or not working on mobile equipment, or a bent or in-need-of-straightening tub hook, is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
 7. **Synthetic generation**: 2,489 synthetic factory work orders (CNC, presses, robots, conveyors, compressors, paint shops, etc.) were written in-session by Claude Code (`claude-sonnet-5`, under a Claude Pro subscription, with no API calls) to a target label and style plan (`configs/synthetic_plan.yaml`). A separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
 8. **Leakage checks** (`scripts/build_dataset.py`): no uid appears in more than one split, and no kept synthetic train text is an exact or near-duplicate (token Jaccard ≥ 0.85) of any val or test text — 0 synthetic texts were dropped for this reason, i.e. the check passed cleanly with nothing to remove.
 
@@ -162,6 +161,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+The MaintIE licence file leaves its copyright holder as a template placeholder; following the project README and paper, we attribute it to the NLP-TLP Group, University of Western Australia.
 
 ## 8. Author
 
