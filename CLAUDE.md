@@ -68,6 +68,9 @@ It is a portfolio piece, published publicly on Hugging Face (account `karthe05`,
 - Done: `docs/labelling-rulebook.md` v1.0 approved and committed.
 - Done: MaintNorm and MaintIE cloned into `data/raw/`. Licences checked (MIT).
 - Done: `scripts/extract_real_texts.py` produced `data/interim/real_texts.jsonl`: 20,076 texts read, 11,633 kept after exact de-duplication (MaintNorm 8,975; MaintIE 2,658), 10 dropped as too short. **Not yet committed.**
+- Done: real labelling (rulebook v1.3, Pass A Sonnet 5.5, Pass B Opus 5.5, 86.6% agreement; test and val disagreements adjudicated, train disagreements dropped).
+- Done: 2,489 synthetic texts generated in-session; 1,814 kept after a blind check (72.9% agreement).
+- Done: final dataset built.
 
 ## 8. Roadmap (remaining phases)
 
