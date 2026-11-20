@@ -287,3 +287,18 @@ These are val-selected per sections 2-5 above; `data/processed/test.jsonl`
 has still never been loaded. Final evaluation against test (frozen
 baselines, calibration, STOP_NOW threshold, test-set metrics) is tracked
 separately in `docs/evaluation.md`.
+
+## 7. Full real-data labelling agreement (2026-11-20)
+
+`scripts/compare_passes.py` run on `data/interim/full_pass_a.jsonl` and
+`data/interim/full_pass_b.jsonl` (the complete real-text labelling pool,
+11,497 texts, both passes before any adjudication or dropping):
+
+| head | agreement | kappa |
+|---|---|---|
+| priority | 92.6% | 0.879 |
+| route | 92.9% | 0.900 |
+| both (either disagrees) | 86.6% | — |
+
+1,536 of 11,497 texts had a priority and/or route disagreement between
+Pass A and Pass B.

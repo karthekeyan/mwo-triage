@@ -136,12 +136,12 @@ Full fine-tune (no LoRA/QLoRA) of `google/electra-small-discriminator` with two 
 
 Real training and test text is drawn from:
 
-- **MaintNorm** — Bikaun, Hodkiewicz and Liu, WNUT 2024. MIT licence. NLP-TLP Group, University of Western Australia. (repo and paper links: to be added before publishing)
-- **MaintIE** — Bikaun et al., LREC-COLING 2024. MIT licence. NLP-TLP Group, University of Western Australia. (repo and paper links: to be added before publishing)
+- **MaintNorm** — Bikaun, Hodkiewicz and Liu, WNUT 2024. MIT licence. NLP-TLP Group, University of Western Australia. Repo: https://github.com/nlp-tlp/maintnorm . Paper: https://aclanthology.org/2024.wnut-1.7
+- **MaintIE** — Bikaun et al., LREC-COLING 2024. MIT licence. NLP-TLP Group, University of Western Australia. Repo: https://github.com/nlp-tlp/maintie . Paper: https://aclanthology.org/2024.lrec-main.954
 
 Please credit MaintNorm and MaintIE and retain their licence notices if you use this model or the underlying data.
 
-Base encoder: **Google ELECTRA** (`google/electra-small-discriminator`), Apache-2.0 licence.
+Base encoder: **Google ELECTRA** (`google/electra-small-discriminator`, https://huggingface.co/google/electra-small-discriminator), Apache-2.0 licence.
 
 ## 10. Author
 
