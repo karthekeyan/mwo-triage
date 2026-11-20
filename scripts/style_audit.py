@@ -48,14 +48,21 @@ def load_jsonl(path):
     return records
 
 
-def load_real_train_texts():
+def load_real_train_records():
     records = load_jsonl(REAL_PATH)
-    return [r["text"] for r in records if r.get("pool") == "train"]
+    return [r for r in records if r.get("pool") == "train"]
+
+
+def load_real_train_texts():
+    return [r["text"] for r in load_real_train_records()]
+
+
+def load_synthetic_records():
+    return load_jsonl(SYNTHETIC_PATH)
 
 
 def load_synthetic_texts():
-    records = load_jsonl(SYNTHETIC_PATH)
-    return [r["text"] for r in records]
+    return [r["text"] for r in load_synthetic_records()]
 
 
 def word_counts(texts):
@@ -128,12 +135,29 @@ def report_rare_phrases(real_texts, synth_texts, top_n=30):
         print(f"  {n:>2} {synth_n:>11} {real_n:>10}  {phrase}")
 
 
+PRIORITIES = ["STOP_NOW", "TODAY", "PLAN", "MONITOR"]
+
+
+def report_mean_words_by_priority(real_records, synth_records):
+    print("\nMean word count by priority (real train pool vs. synthetic):")
+    print(f"  {'priority':>10} {'real mean':>10} {'real n':>7} {'synth mean':>11} {'synth n':>8}")
+    for p in PRIORITIES:
+        real_wc = [len(r["text"].split()) for r in real_records if r.get("priority") == p]
+        synth_wc = [len(r["text"].split()) for r in synth_records if r.get("target_priority") == p]
+        real_mean = f"{statistics.mean(real_wc):.2f}" if real_wc else "n/a"
+        synth_mean = f"{statistics.mean(synth_wc):.2f}" if synth_wc else "n/a"
+        print(f"  {p:>10} {real_mean:>10} {len(real_wc):>7} {synth_mean:>11} {len(synth_wc):>8}")
+
+
 def main():
-    real_texts = load_real_train_texts()
-    synth_texts = load_synthetic_texts()
+    real_records = load_real_train_records()
+    synth_records = load_synthetic_records()
+    real_texts = [r["text"] for r in real_records]
+    synth_texts = [r["text"] for r in synth_records]
 
     report_corpus("Real (train pool)", real_texts)
     report_corpus("Synthetic", synth_texts)
+    report_mean_words_by_priority(real_records, synth_records)
     report_rare_phrases(real_texts, synth_texts)
 
 

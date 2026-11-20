@@ -190,6 +190,15 @@ hard_case:
 style:
   word_count_min: 3
   word_count_max: 15
+  # Length targets added 2026-11-20 after the first 501-text batch came out
+  # too wordy (mean 8.92, median 9 words) against the real train-pool
+  # texts (mean 5.38, median 5.0) and had to be compressed after the fact.
+  # Write to these targets up front instead:
+  length_targets:
+    overall_median_words: "5-6"
+    overall_mean_words_max: 6.5
+    per_priority_mean_within_words_of_real: 1.5
+    per_priority_real_means: {STOP_NOW: 5.41, TODAY: 5.23, PLAN: 5.40, MONITOR: 6.13}
   messy_fraction: 0.70
   clean_fraction: 0.30
   messy_features:
@@ -244,3 +253,29 @@ generation_rules:
     range; or a request to observe on the next run or shift. Before
     saving a chunk, check the running MONITOR phrase counts across
     data/interim/synthetic_raw.jsonl, not just the new chunk.
+  - >-
+    Added 2026-11-20 after a compression pass was needed on the first 501
+    texts: write fragment style like the real data from the start --
+    drop articles and connectors, use the rulebook's abbreviations --
+    and keep each text close to style.length_targets (overall median
+    5-6 words, overall mean at most 6.5, and each priority's mean within
+    about 1.5 words of its real-data mean above). Always keep the fact
+    that decides the label (e.g. "onto hot exhaust", "line down",
+    "spraying", "u/s"); if a text can't be shortened without losing that
+    fact, leave it longer rather than drop the fact. Before saving a
+    chunk, run scripts/style_audit.py and check the new chunk's mean and
+    per-priority means against these targets, not just the whole file's.
+  - >-
+    Added 2026-11-20 after the same compression pass protected the
+    priority-deciding word (e.g. "spraying", "u/s") in a text but dropped
+    the route-deciding word, leaving the route unrecoverable from the
+    text alone (e.g. "Main hyd pump failed, press line stopped" ->
+    "Main pump failed, press line stopped" loses "hyd"): keep both the
+    priority-deciding word and the route-deciding word in every text --
+    a rulebook section 4 cue for the route (hyd/hydraulic, air/pneumatic,
+    elec/electrical, motor, wiring/cable, breaker, sensor, gauge,
+    transmitter, PLC, HMI, lube/grease/oiler, bearing, belt, seal, or an
+    equally specific named component such as accumulator/valve/cylinder/
+    contactor/starter/isolator) as well as the priority cue. A bare
+    "pump"/"line"/"motor"/"seal" alone is not enough once the more
+    specific word next to it has been cut for length.
