@@ -28,7 +28,7 @@ Real output from the packaged model, balanced mode (`release/mwo-triage-5M`, sec
 
 "Hydraulic press 3 leaking oil near main cylinder, pressure dropping during cycle" → **STOP_NOW** (priority_confidence 0.46), **HYDRAULIC_PNEUMATIC** (route_confidence 0.99).
 
-The rulebook answer here is `TODAY` (a leak that isn't spraying, on a hot surface or in a people area, with the machine still degraded-but-running, not stopped) — the model gets it wrong, but its priority_confidence (0.46, close to even odds across 4 classes) says so itself: this is exactly the kind of low-confidence call that should be flagged for a human planner to check rather than acted on automatically. A high-confidence wrong call would be a worse failure mode than this one; use priority_confidence this way — as a signal of how much to trust the label, not just which label won.
+The rulebook answer here is `TODAY` (a leak that isn't spraying, on a hot surface or in a people area, with the machine still degraded-but-running, not stopped) — the model gets it wrong, but its priority_confidence (0.46, only just below 50%, meaning the model is close to evenly split between two answers) says so itself: this is exactly the kind of low-confidence call that should be flagged for a human planner to check rather than acted on automatically. A high-confidence wrong call would be a worse failure mode than this one; use priority_confidence this way — as a signal of how much to trust the label, not just which label won.
 
 ## 1. Summary
 
