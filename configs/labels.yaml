@@ -1,0 +1,24 @@
+# Fixed label id mappings for the mwo-triage classifier heads.
+#
+# Order follows docs/labelling-rulebook.md (v1.3): priority is checked
+# stop_now -> today -> plan -> monitor (section 3); route follows the
+# component table order in section 4, with ESCALATE last (section 5).
+# These ids are load-bearing for any trained model checkpoint -- do not
+# reorder or renumber without a version bump and a full retrain.
+
+version: 1
+rulebook_version: "1.3"
+
+priority:
+  STOP_NOW: 0
+  TODAY: 1
+  PLAN: 2
+  MONITOR: 3
+
+route:
+  MECHANICAL: 0
+  ELECTRICAL: 1
+  HYDRAULIC_PNEUMATIC: 2
+  INSTRUMENTATION_CONTROLS: 3
+  LUBRICATION: 4
+  ESCALATE: 5
