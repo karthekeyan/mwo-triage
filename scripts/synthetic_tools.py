@@ -19,6 +19,7 @@ checks and cleans that file.
 
 import argparse
 import json
+import random
 import re
 import sys
 from collections import Counter, defaultdict
@@ -106,65 +107,68 @@ def group_dict_key(group):
     return (group["block"], group["priority"], group["route"], group["theme"])
 
 
-def cmd_next(args):
-    plan = load_plan()
+def build_full_slot_list(plan):
+    """Every planned slot, in canonical group order, each tagged with its
+    index within its own group (0-based). The within-group index -- not
+    position in this list -- is what "done" is checked against, so the
+    seeded shuffle below can be fixed once and stay valid as records are
+    added."""
     groups = build_slot_groups(plan)
-    existing = load_jsonl(SYNTHETIC_PATH)
-
-    done_counts = Counter(group_key(r) for r in existing)
-
     equipment_list = plan["factory"]["equipment"]
-    equipment_cycle_pos = defaultdict(int)  # per factory group, how many equipment assignments handed out so far
-
-    pending = []
+    slots = []
     for group in groups:
-        key = group_dict_key(group)
-        done = done_counts.get(key, 0)
-        remaining = max(0, group["target"] - done)
-        for _ in range(remaining):
+        for within_idx in range(group["target"]):
             slot = {
                 "block": group["block"],
                 "priority": group["priority"],
                 "route": group["route"],
                 "theme": group["theme"],
+                "within_group_index": within_idx,
             }
             if group["block"] == "factory":
-                idx = equipment_cycle_pos[key]
-                slot["equipment"] = equipment_list[idx % len(equipment_list)]
-                equipment_cycle_pos[key] += 1
+                slot["equipment"] = equipment_list[within_idx % len(equipment_list)]
             else:
                 slot["equipment"] = None
+            slots.append(slot)
+    return slots
+
+
+def shuffled_slot_order(plan, slots):
+    """A fixed permutation of slot positions, seeded from the plan, so
+    repeated runs of "next" hand out slots in the same mixed order."""
+    order = list(range(len(slots)))
+    random.Random(plan["seed"]).shuffle(order)
+    return order
+
+
+def cmd_next(args):
+    plan = load_plan()
+    existing = load_jsonl(SYNTHETIC_PATH)
+    done_counts = Counter(group_key(r) for r in existing)
+
+    slots = build_full_slot_list(plan)
+    order = shuffled_slot_order(plan, slots)
+
+    pending = []
+    for i in order:
+        slot = slots[i]
+        key = (slot["block"], slot["priority"], slot["route"], slot["theme"])
+        done = done_counts.get(key, 0)
+        if slot["within_group_index"] >= done:
             pending.append(slot)
 
     total_remaining = len(pending)
     chunk = pending[:CHUNK_SIZE]
 
     print(f"{total_remaining} slots remaining out of {plan['total_to_generate']} planned.")
-    print(f"Next {len(chunk)}, in order (equipment cycles within a factory cell; repeat the cell/theme line that many times):")
-    i = 0
-    while i < len(chunk):
-        slot = chunk[i]
+    print(f"Next {len(chunk)}, in seeded shuffled order (mixes cells/blocks/themes):")
+    for i, slot in enumerate(chunk, 1):
         if slot["block"] == "factory":
-            # Collapse a run of the same cell into one line, listing the
-            # distinct equipment items covered (they cycle, so a run can
-            # repeat an item).
-            j = i
-            equips = []
-            while j < len(chunk) and chunk[j]["block"] == "factory" \
-                    and chunk[j]["priority"] == slot["priority"] and chunk[j]["route"] == slot["route"]:
-                equips.append(chunk[j]["equipment"])
-                j += 1
-            print(f"  x{j - i:<3d} block=factory cell={slot['priority']}/{slot['route']} equipment={', '.join(equips)}")
-            i = j
+            print(f"  {i:2d}. block=factory cell={slot['priority']}/{slot['route']} equipment={slot['equipment']}")
+        elif slot["block"] == "hard_case":
+            print(f"  {i:2d}. block=hard_case theme={slot['theme']}")
         else:
-            j = i
-            while j < len(chunk) and chunk[j] == slot:
-                j += 1
-            if slot["block"] == "hard_case":
-                print(f"  x{j - i:<3d} block=hard_case theme={slot['theme']}")
-            else:
-                print(f"  x{j - i:<3d} block=topup cell={slot['priority']}/{slot['route']}")
-            i = j
+            print(f"  {i:2d}. block=topup cell={slot['priority']}/{slot['route']}")
 
 
 # --------------------------------------------------------------- check

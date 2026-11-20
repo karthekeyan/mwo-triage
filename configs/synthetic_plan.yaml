@@ -12,7 +12,7 @@
 version: 1
 seed: 42
 rulebook_version: "1.3"
-total_to_generate: 2504  # 904 (topup) + 1100 (factory) + 500 (hard_case)
+total_to_generate: 2464  # 864 (topup) + 1100 (factory) + 500 (hard_case)
 
 priorities: [STOP_NOW, TODAY, PLAN, MONITOR]
 routes: [MECHANICAL, ELECTRICAL, HYDRAULIC_PNEUMATIC, INSTRUMENTATION_CONTROLS, LUBRICATION, ESCALATE]
@@ -26,13 +26,13 @@ topup:
     Thin priority/route cells in the real train pool, topped up to a
     target count. Write plain, realistic maintenance texts for these
     cells -- no fixed equipment list, use whatever equipment fits.
-  total_to_generate: 904
+  total_to_generate: 864
   cells:
     - priority: STOP_NOW
       route: LUBRICATION
       existing_real: 1
-      target: 80
-      to_generate: 79
+      target: 40  # lowered from 80 on review (chunk 1 was too templated on this cell)
+      to_generate: 39
     - priority: STOP_NOW
       route: ESCALATE
       existing_real: 40
@@ -199,3 +199,48 @@ style:
     - made-up asset codes shaped like the real ones (two letters + three digits, e.g. "KT402"), never real IDs
   clean_features:
     - full words, normal capitalisation, no abbreviations
+
+# ------------------------------------------------------------ generation
+# Rules added on review of chunk 1 (too templated, one cell per chunk,
+# style too clean) -- apply these when writing every chunk from here on.
+generation_rules:
+  - >-
+    No single trigger phrase or sentence pattern (e.g. "X dry, burning
+    smell/smoke", "X bearing temp rising, grinding") may appear in more
+    than 5 texts within any one chunk shown for review.
+  - >-
+    The next command serves slots in a seeded shuffled order (see
+    scripts/synthetic_tools.py), so a chunk mixes cells, blocks and
+    themes rather than draining one cell at a time.
+  - >-
+    For STOP_NOW x LUBRICATION specifically, spread the STOP_NOW trigger
+    across four kinds, not just one -- a line/machine stopped by a lube
+    system failure; a repeated low-lube-pressure or low-oil-level trip;
+    rising temperature from oil/grease starvation (with grinding or
+    knocking); and smoke/burning smell from a dry-running, unlubricated
+    part. Smoke/burning smell is at most a quarter of this cell's texts.
+  - >-
+    Smoke and burning smell must also appear as STOP_NOW triggers on
+    other routes across the dataset, especially ELECTRICAL (e.g. a
+    burning smell from a motor winding or a smoking cable) -- they are
+    general P1 safety triggers (rulebook section 3), not a lubrication
+    shortcut, and the route must still be decided by the repair target.
+  - >-
+    Actually hit the 70% messy / 30% clean split per chunk: use the
+    rulebook section 7 abbreviations, ALL CAPS or mixed casing, dropped
+    words, small typos, and made-up two-letter+three-digit asset codes --
+    and vary where the asset code sits in the sentence (start, middle, or
+    end), since real texts don't always lead with it.
+  - >-
+    Added on review after chunk 10 (MONITOR texts had templated on
+    "a touch low/high", "logged" and "keeping an eye"): no closing phrase
+    for a MONITOR text may appear in more than 5 MONITOR texts across the
+    whole dataset, not just within a chunk. Vary the MONITOR close across
+    forms such as: an oil sample, thermography scan or vibration route
+    result marked "trend" or "watch only"; an inspection finding within
+    tolerance or within spec; "due a look/recheck at the next PM"; an
+    operator or crew noticing a minor change in passing; a reading
+    slightly/somewhat/marginally off but still within normal limits or
+    range; or a request to observe on the next run or shift. Before
+    saving a chunk, check the running MONITOR phrase counts across
+    data/interim/synthetic_raw.jsonl, not just the new chunk.
