@@ -3,6 +3,7 @@ license: apache-2.0
 language: en
 pipeline_tag: text-classification
 base_model: google/electra-small-discriminator
+# datasets: TODO - fill in the published dataset id(s) once the dataset is pushed to the Hub
 tags:
 - maintenance
 - manufacturing
@@ -13,6 +14,15 @@ tags:
 
 # mwo-triage-13M
 
+## Example
+
+*Placeholder — to be filled with real model output during packaging, once the inference wrapper (section 8) exists. Shown here only to illustrate the shape of the output.*
+
+```
+Input:  "AV277 Rep brake temp warning fault"
+Output: priority = STOP_NOW (p = 0.00), route = INSTRUMENTATION_CONTROLS (p = 0.00)
+```
+
 ## 1. Summary
 
 mwo-triage-13M is a "System 1" decision model: an encoder classifier that reads one short maintenance work-order text and instantly predicts two labels: **priority** (`STOP_NOW`, `TODAY`, `PLAN`, `MONITOR`) and **route** (`MECHANICAL`, `ELECTRICAL`, `HYDRAULIC_PNEUMATIC`, `INSTRUMENTATION_CONTROLS`, `LUBRICATION`, `ESCALATE`), with a calibrated confidence score for each. It has 13.5M parameters, is built on `google/electra-small-discriminator` with two classification heads on a shared encoder, and runs offline on a CPU in about 6.5 ms per text.
@@ -20,6 +30,14 @@ mwo-triage-13M is a "System 1" decision model: an encoder classifier that reads 
 ## 2. Intended use
 
 This model suggests a triage call for a human planner to confirm, review or override. It is **not** a safety system, does not replace a site's own safety procedures or isolation/lockout rules, and must not be used to make an automatic stop/isolate decision without a person in the loop. It is intended as a fast first pass over incoming work-order text, not a final determination.
+
+### Out of scope
+
+- Non-English text.
+- Long free-form reports (the model is trained and evaluated on short work-order-style text, mostly under 8 words; see section 4).
+- Text describing several faults at once.
+- Non-maintenance tickets.
+- Any automatic safety action (stopping, isolating or locking out equipment) taken without a person in the loop.
 
 ## 3. Labels
 
@@ -45,7 +63,7 @@ Full definitions, worked examples and tie-break rules are in `docs/labelling-rul
 
 ### Headline table
 
-| model | priority F1 (bal.) | route F1 (bal.) | STOP_NOW recall (bal. / safety) | STOP_NOW precision (bal. / safety) | size (MB) | CPU latency (ms/text) |
+| model | priority macro-F1 (bal.) | route macro-F1 (bal.) | STOP_NOW recall (bal. / safety) | STOP_NOW precision (bal. / safety) | size (MB) | CPU latency (ms/text) |
 |---|---|---|---|---|---|---|
 | **mwo-triage-13M (this model)** | **0.8486** | **0.8219** | **0.7207 / 0.8288** | **0.6897 / 0.5412** | **51.52** | **6.506** |
 | ELECTRA-small frozen baseline | 0.3448 | 0.1192 | 0.0000 / — | 0.0000 / — | 51.52 | 6.545 |
@@ -71,7 +89,7 @@ The model ships with a calibrated STOP_NOW probability threshold (t=0.1596, fit 
 | mode | priority macro-F1 | route macro-F1 | STOP_NOW recall | STOP_NOW precision |
 |---|---|---|---|---|
 | Balanced (argmax, calibrated probs) | 0.8486 | 0.8219 | 0.7207 | 0.6897 |
-| Safety (STOP_NOW if P ≥ t=0.1596, else argmax) | 0.8312 | — | 0.8288 | 0.5412 |
+| Safety (STOP_NOW if P ≥ t=0.1596, else argmax) | 0.8312 | 0.8219 | 0.8288 | 0.5412 |
 
 Safety mode catches more true STOP_NOW cases at the cost of more false STOP_NOW alarms; it does not change the route head.
 
@@ -103,7 +121,24 @@ Per-head temperature scaling was fit on validation data (priority T=1.9388, rout
 
 Real training examples are work orders from **MaintNorm** and **MaintIE** (mining and heavy mobile equipment maintenance text). A set of verified synthetic factory work orders (CNC, presses, robots, conveyors, compressors, paint shops, etc.) was added to the training split only, to broaden coverage beyond mining-fleet language; the test set is real text only.
 
-Labels follow `docs/labelling-rulebook.md` and were produced by two independent AI labelling passes — Claude Sonnet 5.5 (Pass A) and Claude Opus 5.5 (Pass B) — reading the same rulebook. Validation and test disagreements between the two passes were adjudicated by a third pass using the rulebook's tie-break rules; training-pool disagreements take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against adjudicated validation labels. Overall agreement between the two passes was 86.6%. **There was no human domain-expert review** of any label; quality comes from the rulebook, the two-pass agreement process, and the limitations documented here and in the rulebook itself.
+Labels follow `docs/labelling-rulebook.md` and were produced by two independent AI labelling passes — Claude Sonnet 5.5 (Pass A) and Claude Opus 5.5 (Pass B) — reading the same rulebook, over the complete real-text labelling pool (11,497 texts). Agreement between the two passes was 92.6% on priority (kappa 0.879), 92.9% on route (kappa 0.900), and 86.6% on both heads together (an example counts as agreeing only if priority and route both match).
+
+Where the two passes disagreed:
+
+- **Test and validation pools**: every disagreement was adjudicated by a third pass applying the rulebook's tie-break rules. 11 of these were decided by Claude Fable 5.2 (batch mode); the remaining 300 were decided by Claude Code in-session (`claude-sonnet-5`).
+- **Training pool**: disagreements take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A; see `docs/experiment-log.md` sections 3-4).
+
+After adjudication, a small number of documented rule overrides were applied on top of whatever label survived, regardless of pool:
+
+- **31 brake/steering cases**: any work order naming a brake or steering fault, u/s, not working or failed on mobile equipment was set to `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights, which keep their original label (`scripts/apply_rulings.py`, `data/interim/rulings_overrides.jsonl`).
+- **Retarder ruling**: a retarder reported as u/s or not working on mobile equipment is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
+- **Hook ruling**: a bent or in-need-of-straightening tub hook is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
+
+**No human domain-expert review** was done on any label; quality comes from the rulebook, the two-pass agreement process, the documented rule overrides above, and the limitations documented here and in the rulebook itself.
+
+Synthetic data: 2,489 synthetic factory work orders were generated in-session (via the Anthropic API, under the user's approval) and labelled the same way; 1,814 were kept after a blind relabelling check found 72.9% agreement with the original label. Synthetic examples are train-only.
+
+Final split sizes: train 11,011 (9,197 real + 1,814 synthetic), val 800, test 1,500 — val and test are real text only.
 
 ## 6. Training procedure
 
@@ -113,7 +148,7 @@ Full fine-tune (no LoRA/QLoRA) of `google/electra-small-discriminator` with two 
 - Learning rate: 1e-4, AdamW, 10% linear warmup then linear decay
 - Batch size 64, max sequence length 32, seed 42, fp16
 - Up to 25 epochs, early stopping on validation mean macro-F1 (patience 4); best epoch 11
-- Distillation loss per head: 0.5 × hard-label cross-entropy + 0.5 × KL(student ‖ teacher) at temperature 2, scaled by T²
+- Distillation loss per head: 0.5 × hard-label cross-entropy + 0.5 × KL(teacher ‖ student) at temperature 2, scaled by T²
 - Validation data only was used for all model selection, calibration and threshold fitting; the test set was loaded exactly once, after those choices were locked.
 
 ## 7. Limitations
