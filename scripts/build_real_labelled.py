@@ -9,8 +9,13 @@ For every uid in data/interim/real_all_pools.jsonl:
     data/interim/adj_inline.jsonl (in-session), with label_source
     "adjudicated:<adjudicator>"; drop it (reason "adjudicated_drop") if the
     adjudicator's decision was DROP.
-  - otherwise (a train-pool disagreement), drop it (reason
-    "train_disagreement") and count it.
+  - otherwise (a train-pool disagreement), use Pass B's label (label_source
+    "passB-default"). Val/val-metric checks (docs/experiment-log.md section 3)
+    found Pass B (val priority macro-F1 0.975) more accurate than Pass A
+    (0.923), and Pass A systematically under-calls STOP_NOW -- dropping
+    these disagreements, as earlier versions of this script did, removed
+    mostly borderline STOP_NOW cases from train. No train uid is dropped
+    for disagreement any more.
 
 data/interim/rulings_overrides.jsonl is then applied on top of whatever
 survives: its new_priority/new_rule/new_route (whichever are set)
@@ -78,6 +83,7 @@ def main():
     dropped_reasons = Counter()
     kept_per_pool = Counter()
     overrides_applied = 0
+    passb_default_count = 0
     group_pools = defaultdict(set)
 
     for meta in pool_records:
@@ -95,8 +101,10 @@ def main():
                 continue
             label_source = f"adjudicated:{adjudicator}"
         else:
-            dropped_reasons["train_disagreement"] += 1
-            continue
+            priority, route, rule = b["priority"], b["route"], b["rule"]
+            rulebook_version = b["rulebook_version"]
+            label_source = "passB-default"
+            passb_default_count += 1
 
         override = overrides.get(uid)
         if override is not None:
@@ -141,6 +149,8 @@ def main():
             print(f"  {reason}: {count}")
     else:
         print("  none")
+
+    print(f"\n=== Train-pool disagreements given Pass B's label (passB-default): {passb_default_count} ===")
 
     print(f"\n=== Overrides applied: {overrides_applied} ===")
 

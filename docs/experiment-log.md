@@ -156,3 +156,71 @@ guard/brake faults) where the rulebook's P1 safety triggers (brake failure,
 guard missing/damaged, hazardous leak) require reading past abbreviations
 like "C/O", "INV/REP", "LH&RH" that the model, unlike a rulebook-following
 human pass, doesn't reliably key off.
+
+## 4. Give train disagreements Pass B's label instead of dropping them (2026-11-20)
+
+Finding from section 3: dropping the 1,225 train-pool Pass A/Pass B
+disagreements removed mostly borderline STOP_NOW cases, because Pass A
+under-calls STOP_NOW and Pass B is the more accurate labeller (val
+priority macro-F1 0.975 vs 0.923). Fix, no API calls:
+
+1. `scripts/build_real_labelled.py`: train-pool disagreements now take
+   Pass B's label (`label_source` "passB-default") instead of being
+   dropped; `rulings_overrides.jsonl` still applies on top. Val and test
+   are untouched (still adjudicated as before).
+2. Reran `scripts/build_real_labelled.py` then `scripts/build_dataset.py`
+   (leakage checks passed: 0 synthetic duplicates of val/test, no
+   cross-split uids).
+
+| | old (dropped) | new (passB-default) | change |
+|---|---|---|---|
+| real train size | 7,972 | 9,197 | +1,225 |
+| real train STOP_NOW count | 463 | 689 | +226 |
+| train (real+synthetic) size | 9,786 | 11,011 | +1,225 |
+| train (real+synthetic) STOP_NOW count | 1,088 | 1,314 | +226 |
+
+val (800) and test (1,500) are byte-for-byte unchanged.
+
+3. Retrained both winners with the (a) early-stopping settings (same
+   model/lr as the bake-off winner, up to 25 epochs, patience 4), val
+   only, test never touched. `L4_a_earlystop_passb` early-stopped at
+   epoch 11 (best epoch 7); log in `outputs/bakeoff/retrain_passb.log`
+   (not committed).
+
+| model | run | best epoch | val priority F1 | val route F1 | val mean F1 | STOP_NOW recall | STOP_NOW precision |
+|---|---|---|---|---|---|---|---|
+| ELECTRA-small | (a) old (dropped) | 14 | 0.8415 | 0.8696 | 0.8556 | 0.6029 | 0.6721 |
+| ELECTRA-small | (a) new (passB-default) | 8 | 0.8407 | 0.8487 | 0.8447 | **0.7059** | 0.6486 |
+| BERT L-4/H-128 | (a) old (dropped) | 7 | 0.8316 | 0.8329 | 0.8322 | 0.5882 | 0.7143 |
+| BERT L-4/H-128 | (a) new (passB-default) | 7 | 0.8326 | 0.8315 | 0.8320 | **0.7059** | 0.6400 |
+
+Both models: STOP_NOW recall jumps ~10-12 points (0.60/0.59 -> 0.71) at
+a small cost to route F1 and STOP_NOW precision, while priority F1 and
+mean F1 stay essentially flat. This confirms the section-3 finding: the
+dropped disagreements genuinely were disproportionately real STOP_NOW
+signal, not noise, and keeping them (via Pass B) teaches the model to
+catch more of them without materially hurting anything else.
+
+### Were the 10 previously-missed STOP_NOW texts (section 3) caught now?
+
+ELECTRA (a) new, argmax prediction, no threshold:
+
+| uid | text | old pred | new pred | new STOP_NOW prob | caught? |
+|---|---|---|---|---|---|
+| real-00060 | JN872 INV/REP EXHAUST LEAK | TODAY | STOP_NOW | 0.9318 | yes |
+| real-00600 | OC168 LOCATE AND FIT POS4 WHEEL GAURD | PLAN | PLAN | 0.0029 | no |
+| real-00896 | AY686 - TEL/REM CAMERA FAULT | TODAY | TODAY | 0.1178 | no |
+| real-00990 | DI743 BUCKET CREEPS UP | TODAY | STOP_NOW | 0.9091 | yes |
+| real-01387 | AR931 REPLACE BLOWN CROWD CYL HOSE | TODAY | STOP_NOW | 0.9800 | yes |
+| real-01903 | DK579 REPLACE BLOWN IMPLIMENT HOSE | TODAY | STOP_NOW | 0.9798 | yes |
+| real-02226 | RD227 PARK BRAKE APPLYING WHEN TRAMMING | TODAY | TODAY | 0.1116 | no |
+| real-02487 | C/O cracked hoist trunnion links LH&RH | TODAY | TODAY | 0.1091 | no |
+| real-02518 | Repair Cracked Fuel Module | TODAY | TODAY | 0.3660 | no |
+| real-02540 | L/H Front ramp cylinder mount cracked | TODAY | TODAY | 0.0613 | no |
+
+4 of 10 now caught (the hose/cylinder "blown"/"creeps up" cases, where
+"blown" and uncontrolled movement are explicit P1 triggers). The
+remaining 6 misses are mostly the abbreviation-heavy ones (guard,
+camera, brake, "C/O", "LH&RH") noted in section 3 -- the fix widened
+real STOP_NOW coverage in train, but didn't specifically target
+abbreviation parsing, so those stay a known gap.
