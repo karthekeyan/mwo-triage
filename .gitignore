@@ -8,3 +8,5 @@ outputs/
 models/
 data/interim/*.jsonl
 data/interim/*.json
+data/processed/*.jsonl
+data/processed/*.json
