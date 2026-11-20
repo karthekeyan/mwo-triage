@@ -108,3 +108,51 @@ pushing STOP_NOW recall from ~0.60 to the 0.85 floor costs roughly
 the expected safety/false-alarm tradeoff of a "never miss STOP_NOW"
 decision rule, and the one worth carrying into the final model choice
 if minimising missed STOP_NOW cases matters more than alarm fatigue.
+
+## 3. Pass A / Pass B vs. the models, on val (2026-11-20)
+
+Quick analysis, no training, val only. For each uid in `data/processed/val.jsonl`,
+looked up that uid's raw (pre-adjudication) label in `data/interim/full_pass_a.jsonl`
+(Pass A, Claude Sonnet 5.5) and `data/interim/full_pass_b.jsonl` (Pass B, Claude
+Opus 5.5), and scored each pass's own priority label against the final (adjudicated)
+val label used as the reference. All 800 val uids matched in both pass files.
+
+| labeller | n | priority macro-F1 | STOP_NOW recall | STOP_NOW precision |
+|---|---|---|---|---|
+| Pass A (Sonnet 5.5) | 800 | 0.9228 | 0.6912 | 1.0000 |
+| Pass B (Opus 5.5) | 800 | 0.9750 | 0.9265 | 0.9545 |
+| ELECTRA-small (a) | 800 | 0.8415 | 0.6029 | 0.6721 |
+| BERT L-4/H-128 (a) | 800 | 0.8316 | 0.5882 | 0.7143 |
+
+Note on reading this: val's reference label is itself adjudicated between
+Pass A and Pass B when they disagreed, so each pass's STOP_NOW precision
+against val is inflated relative to a true external ground truth (val
+is not fully independent of either pass). Even so, the gap is informative:
+both human-rulebook passes score well above either trained classifier on
+priority macro-F1 (0.92-0.98 vs 0.83-0.84) and especially on STOP_NOW
+recall (0.69-0.93 vs 0.58-0.60), which is the headline number the
+post-hoc threshold step (section 2) exists to close.
+
+### 10 val STOP_NOW texts ELECTRA (a) missed (argmax prediction, no threshold)
+
+27 of the 68 actual STOP_NOW val texts were missed by ELECTRA (a)'s plain
+argmax decision (recall 0.6029 -> 41/68 caught). First 10:
+
+| uid | text | predicted priority | STOP_NOW probability |
+|---|---|---|---|
+| real-00060 | JN872 INV/REP EXHAUST LEAK | TODAY | 0.0269 |
+| real-00600 | OC168 LOCATE AND FIT POS4 WHEEL GAURD | PLAN | 0.0024 |
+| real-00896 | AY686 - TEL/REM CAMERA FAULT | TODAY | 0.0900 |
+| real-00990 | DI743 BUCKET CREEPS UP | TODAY | 0.0003 |
+| real-01387 | AR931 REPLACE BLOWN CROWD CYL HOSE | TODAY | 0.0625 |
+| real-01903 | DK579 REPLACE BLOWN IMPLIMENT HOSE | TODAY | 0.1388 |
+| real-02226 | RD227 PARK BRAKE APPLYING WHEN TRAMMING | TODAY | 0.0126 |
+| real-02487 | C/O cracked hoist trunnion links LH&RH | TODAY | 0.2131 |
+| real-02518 | Repair Cracked Fuel Module | TODAY | 0.0105 |
+| real-02540 | L/H Front ramp cylinder mount cracked | TODAY | 0.3011 |
+
+These are almost all short, code-heavy, abbreviation-dense texts (hose/cylinder/
+guard/brake faults) where the rulebook's P1 safety triggers (brake failure,
+guard missing/damaged, hazardous leak) require reading past abbreviations
+like "C/O", "INV/REP", "LH&RH" that the model, unlike a rulebook-following
+human pass, doesn't reliably key off.
