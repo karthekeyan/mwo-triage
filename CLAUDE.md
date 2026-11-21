@@ -71,6 +71,10 @@ It is a portfolio piece, published publicly on Hugging Face (account `karthe05`,
 - Done: real labelling (rulebook v1.3, Pass A Sonnet 5.5, Pass B Opus 5.5, 86.6% agreement; test and val disagreements adjudicated, train disagreements dropped).
 - Done: 2,489 synthetic texts generated in-session; 1,814 kept after a blind check (72.9% agreement).
 - Done: final dataset built.
+- Done: Hugging Face repos renamed and published publicly under `karthe05`:
+  - Model: `karthe05/maintenance-work-order-triage-13M`
+  - Model: `karthe05/maintenance-work-order-triage-5M`
+  - Dataset: `karthe05/maintenance-work-order-triage-data`
 
 ## 8. Roadmap (remaining phases)
 

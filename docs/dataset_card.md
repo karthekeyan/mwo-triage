@@ -13,11 +13,11 @@ tags:
 - small-language-model
 ---
 
-# mwo-triage-data
+# maintenance-work-order-triage-data
 
 ## 1. Summary
 
-`mwo-triage-data` is the training, validation and test data behind the `mwo-triage` models (`mwo-triage-13M`, `mwo-triage-5M`): short maintenance work-order texts, each labelled with a **priority** (`STOP_NOW`, `TODAY`, `PLAN`, `MONITOR`) and a **route** (`MECHANICAL`, `ELECTRICAL`, `HYDRAULIC_PNEUMATIC`, `INSTRUMENTATION_CONTROLS`, `LUBRICATION`, `ESCALATE`). It combines real technician-written work orders from two MIT-licensed academic datasets (**MaintNorm** and **MaintIE**) with synthetic factory work orders written to broaden coverage beyond mining-fleet language. Every label was produced by an AI labelling process following a fixed rulebook; **no label was reviewed by a certified maintenance engineer**.
+`maintenance-work-order-triage-data` is the training, validation and test data behind the `maintenance-work-order-triage` models (`maintenance-work-order-triage-13M`, `maintenance-work-order-triage-5M`): short maintenance work-order texts, each labelled with a **priority** (`STOP_NOW`, `TODAY`, `PLAN`, `MONITOR`) and a **route** (`MECHANICAL`, `ELECTRICAL`, `HYDRAULIC_PNEUMATIC`, `INSTRUMENTATION_CONTROLS`, `LUBRICATION`, `ESCALATE`). It combines real technician-written work orders from two MIT-licensed academic datasets (**MaintNorm** and **MaintIE**) with synthetic factory work orders written to broaden coverage beyond mining-fleet language. Every label was produced by an AI labelling process following a fixed rulebook; **no label was reviewed by a certified maintenance engineer**.
 
 ## 2. Dataset structure
 
@@ -92,7 +92,7 @@ Mean word count: train 5.66, val 5.41, test 5.34.
 
 ## 4. Intended uses and limitations
 
-Intended for training or evaluating short-text maintenance triage classifiers (priority and route), for research and for the `mwo-triage` model family specifically. Not a safety standard and not a substitute for a site's own safety procedures.
+Intended for training or evaluating short-text maintenance triage classifiers (priority and route), for research and for the `maintenance-work-order-triage` model family specifically. Not a safety standard and not a substitute for a site's own safety procedures.
 
 - **Mostly mining heavy-mobile-equipment language.** The real text (MaintNorm, MaintIE) skews toward that domain; the synthetic factory text broadens but does not fully correct this.
 - **Labels were produced entirely by AI** following a fixed rulebook (two independent passes, agreement scoring, adjudication, and the documented rule overrides above). **No label was reviewed by a certified maintenance engineer.**

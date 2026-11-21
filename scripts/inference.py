@@ -23,7 +23,7 @@ A packaged model directory holds:
 Usage:
   from inference import TriageModel
   model = TriageModel.from_pretrained("release/mwo-triage-13M")
-  # or, once published: TriageModel.from_pretrained("karthe05/mwo-triage-13M")
+  # or, once published: TriageModel.from_pretrained("karthe05/maintenance-work-order-triage-13M")
   model.predict(["Hyd hose burst on press 3, oil spraying across walkway"], mode="safety")
 """
 

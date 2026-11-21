@@ -4,7 +4,7 @@ language: en
 pipeline_tag: text-classification
 base_model: google/electra-small-discriminator
 datasets:
-- karthe05/mwo-triage-data
+- karthe05/maintenance-work-order-triage-data
 tags:
 - maintenance
 - manufacturing
@@ -13,7 +13,7 @@ tags:
 - small-language-model
 ---
 
-# mwo-triage-13M
+# maintenance-work-order-triage-13M
 
 ## Why this model exists
 
@@ -51,7 +51,7 @@ This example shows why confidence scores matter. A wrong prediction with high co
 
 ## 1. Summary
 
-mwo-triage-13M is a fast decision model for short maintenance work-order text. It reads one work order and predicts two things:
+maintenance-work-order-triage-13M is a fast decision model for short maintenance work-order text. It reads one work order and predicts two things:
 
 - **Priority:** `STOP_NOW`, `TODAY`, `PLAN` or `MONITOR`.
 - **Route:** `MECHANICAL`, `ELECTRICAL`, `HYDRAULIC_PNEUMATIC`, `INSTRUMENTATION_CONTROLS`, `LUBRICATION` or `ESCALATE`.
@@ -102,7 +102,7 @@ Here is a short summary.
 
 ## 4. Results on 1,500 real test texts
 
-The results below use the [test split](https://huggingface.co/datasets/karthe05/mwo-triage-data/viewer/default/test) of [`karthe05/mwo-triage-data`](https://huggingface.co/datasets/karthe05/mwo-triage-data). It contains 1,500 real texts that were not used during training or validation-only tuning. See [`docs/evaluation.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/evaluation.md).
+The results below use the [test split](https://huggingface.co/datasets/karthe05/maintenance-work-order-triage-data/viewer/default/test) of [`karthe05/maintenance-work-order-triage-data`](https://huggingface.co/datasets/karthe05/maintenance-work-order-triage-data). It contains 1,500 real texts that were not used during training or validation-only tuning. See [`docs/evaluation.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/evaluation.md).
 
 ### Results at a glance
 
@@ -110,8 +110,8 @@ All five models were tested once on the same 1,500 real work orders that none of
 
 | model | quality score, priority (0-1) | quality score, team (0-1) | emergencies caught |
 |---|---|---|---|
-| **mwo-triage-13M** | **0.85** | **0.82** | **72%, or 83% in safety mode** |
-| mwo-triage-5M | 0.83 | 0.80 | 64%, or 84% in safety mode |
+| **maintenance-work-order-triage-13M** | **0.85** | **0.82** | **72%, or 83% in safety mode** |
+| maintenance-work-order-triage-5M | 0.83 | 0.80 | 64%, or 84% in safety mode |
 | Google ELECTRA-small, as released | 0.34 | 0.12 | 0% |
 | Google BERT tiny, as released | 0.46 | 0.43 | 11% |
 | Microsoft DeBERTa-v3-base, trained by us as a coach (about 13x bigger) | 0.87 | 0.84 | 68% |
@@ -122,7 +122,7 @@ The quality score is macro-F1, which weights every label equally, so a model can
 
 | model | priority macro-F1 (bal.) | route macro-F1 (bal.) | STOP_NOW recall (bal. / safety) | STOP_NOW precision (bal. / safety) | size (MB) | CPU latency (ms/text) |
 |---|---|---|---|---|---|---|
-| **mwo-triage-13M (this model)** | **0.8486** | **0.8219** | **0.7207 / 0.8288** | **0.6897 / 0.5412** | **51.52** | **6.506** |
+| **maintenance-work-order-triage-13M (this model)** | **0.8486** | **0.8219** | **0.7207 / 0.8288** | **0.6897 / 0.5412** | **51.52** | **6.506** |
 | ELECTRA-small frozen baseline | 0.3448 | 0.1192 | 0.0000 / — | 0.0000 / — | 51.52 | 6.545 |
 | DeBERTa-v3-base teacher (reference) | 0.8675 | 0.8415 | 0.6757 / — | 0.7895 / — | 701.37 | 51.249 |
 
@@ -261,13 +261,13 @@ Download the inference file and load the model:
 from huggingface_hub import hf_hub_download
 import importlib.util
 
-inference_path = hf_hub_download(repo_id="karthe05/mwo-triage-13M", filename="inference.py")
+inference_path = hf_hub_download(repo_id="karthe05/maintenance-work-order-triage-13M", filename="inference.py")
 spec = importlib.util.spec_from_file_location("inference", inference_path)
 inference = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(inference)
 TriageModel = inference.TriageModel
 
-model = TriageModel.from_pretrained("karthe05/mwo-triage-13M")
+model = TriageModel.from_pretrained("karthe05/maintenance-work-order-triage-13M")
 texts = ["Hyd hose burst on press 3, oil spraying across walkway"]
 balanced = model.predict(texts, mode="balanced")
 safety = model.predict(texts, mode="safety")
