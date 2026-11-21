@@ -15,9 +15,23 @@ tags:
 
 # mwo-triage-5M
 
+## Why this model exists
+
+**The problem.** In many plants, planners still read every maintenance request by hand to decide its urgency and which team should handle it, even when the plant already has SAP PM or Maximo.
+
+**Why it hurts.** Manual sorting is slow and inconsistent. Some jobs get marked urgent when they are not, while genuinely urgent problems can wait in the queue. Planners can spend a large part of their day just sorting requests instead of fixing anything.
+
+**Why it matters.** Delays on genuinely urgent jobs mean downtime, safety risk and lost production. When sorting is inconsistent, technicians may end up working on less important jobs first while urgent ones wait.
+
+**How it is often done today.** The operator picks a priority from a dropdown when logging the request. A planner or supervisor then corrects it, often in the morning meeting. Genuine emergencies get reported by phone instead of waiting for this process.
+
+**What this model does.** It reads one request and suggests a priority and a team, each with a confidence score. The planner still reviews and approves the suggestion. Vague requests are routed to `ESCALATE` rather than guessed at, and low-confidence suggestions can be flagged for manual review instead of being acted on automatically. It is the lightweight sibling of `mwo-triage-13M`, meant for edge devices, phones and other low-cost hardware where even the already-small `mwo-triage-13M` is too big or too slow. It runs inside the plant on an ordinary computer, at about 1.8 ms per request on CPU, with no GPU, no cloud dependency and no per-request cost.
+
+**How well it works.** On 1,500 real work orders it had never seen, it scored macro-F1 0.83 for priority and 0.80 for team. It caught 64% of real emergencies in balanced mode and 84% in safety mode.
+
 ## Example
 
-Real output from the packaged model, balanced mode (`release/mwo-triage-5M`, section 8):
+This is real output from the published model in balanced mode (see section 8):
 
 | text | priority | priority_confidence | route | route_confidence |
 |---|---|---|---|---|
@@ -29,45 +43,66 @@ Real output from the packaged model, balanced mode (`release/mwo-triage-5M`, sec
 
 "Hydraulic press 3 leaking oil near main cylinder, pressure dropping during cycle" → **STOP_NOW** (priority_confidence 0.46), **HYDRAULIC_PNEUMATIC** (route_confidence 0.99).
 
-The rulebook answer here is `TODAY` (a leak that isn't spraying, on a hot surface or in a people area, with the machine still degraded-but-running, not stopped) — the model gets it wrong, but its priority_confidence (0.46, only just below 50%, meaning the model is close to evenly split between two answers) says so itself: this is exactly the kind of low-confidence call that should be flagged for a human planner to check rather than acted on automatically. A high-confidence wrong call would be a worse failure mode than this one; use priority_confidence this way — as a signal of how much to trust the label, not just which label won.
+According to the rulebook, the correct priority for this example is `TODAY`. The leak is not spraying, is not on a hot surface or in an area where people are present, and the machine is still running with reduced performance.
+
+The model predicts `STOP_NOW`, so its priority prediction is wrong. However, its confidence is only 0.46, just below 50%, which means the model is almost equally unsure between two answers. A human planner should review this result instead of acting on it automatically.
+
+This example shows why confidence scores matter. A wrong prediction with high confidence could be more dangerous. Use `priority_confidence` as a guide to how much to trust a prediction, not just as an extra number beside the predicted label.
 
 ## 1. Summary
 
-mwo-triage-5M is the lightweight sibling of `mwo-triage-13M`: a "System 1" decision model that reads one short maintenance work-order text and instantly predicts two labels: **priority** (`STOP_NOW`, `TODAY`, `PLAN`, `MONITOR`) and **route** (`MECHANICAL`, `ELECTRICAL`, `HYDRAULIC_PNEUMATIC`, `INSTRUMENTATION_CONTROLS`, `LUBRICATION`, `ESCALATE`), with a calibrated confidence score for each. It has 4.78M parameters, is built on `google/bert_uncased_L-4_H-128_A-2` with two classification heads on a shared encoder, and runs offline on a CPU in about 1.8 ms per text. It is meant for edge devices, phones and other low-cost hardware where even the already-small `mwo-triage-13M` is too big or too slow. On the test set, `mwo-triage-5M` trades a small amount of accuracy for a large speed-up: priority macro-F1 0.8265 vs. 0.8486 and route macro-F1 0.8008 vs. 0.8219 for `mwo-triage-13M`, at 1.799 ms/text vs. 6.506 ms/text (about 3.6x faster).
+mwo-triage-5M is a fast decision model for short maintenance work-order text. It reads one work order and predicts two things:
+
+- **Priority:** `STOP_NOW`, `TODAY`, `PLAN` or `MONITOR`.
+- **Route:** `MECHANICAL`, `ELECTRICAL`, `HYDRAULIC_PNEUMATIC`, `INSTRUMENTATION_CONTROLS`, `LUBRICATION` or `ESCALATE`.
+
+The model also gives a calibrated confidence score for each prediction.
+
+The model has 4.78M parameters. It uses `google/bert_uncased_L-4_H-128_A-2` as its base model and has two classification heads that share the same encoder. It can run offline on a CPU and takes about 1.8 ms to process one text. It is the lightweight sibling of `mwo-triage-13M`: on the test set it trades a small amount of accuracy for a large speed-up, priority macro-F1 0.8265 vs. 0.8486 and route macro-F1 0.8008 vs. 0.8219 for `mwo-triage-13M`, at 1.799 ms/text vs. 6.506 ms/text (about 3.6x faster).
 
 ## 2. Intended use
 
-This model suggests a triage call for a human planner to confirm, review or override. It is **not** a safety system, does not replace a site's own safety procedures or isolation/lockout rules, and must not be used to make an automatic stop/isolate decision without a person in the loop. It is intended as a fast first pass over incoming work-order text, not a final determination.
+The model gives a first suggestion about the priority and route of a maintenance work order. A human planner must review the suggestion and can confirm or change it.
+
+This model is **not a safety system**. It does not replace a site's safety procedures or its isolation and lockout rules. Never use it to stop or isolate equipment automatically without a person making the decision.
+
+Use it as a quick first check of incoming work orders, not as the final decision-maker.
 
 ### Out of scope
 
-- Non-English text.
-- Long free-form reports (the model is trained and evaluated on short work-order-style text, mostly under 8 words; see section 4).
-- Text describing several faults at once.
-- Non-maintenance tickets.
-- Any automatic safety action (stopping, isolating or locking out equipment) taken without a person in the loop.
+Do not use this model for:
+
+- Text written in languages other than English.
+- Long, free-form reports. The model was trained and tested on short work-order-style text, mostly under 8 words (see section 4).
+- Text that describes several faults at the same time.
+- Tickets that are not related to maintenance.
+- Automatic safety actions, such as stopping, isolating or locking out equipment, without a person in the decision process.
 
 ## 3. Labels
 
-Full definitions, worked examples and tie-break rules are in [`docs/labelling-rulebook.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/labelling-rulebook.md) (v1.3). Short summary:
+The full label definitions, examples and rules for deciding between labels are in [`docs/labelling-rulebook.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/labelling-rulebook.md) (v1.3).
 
-**Priority** (checked in this order; first match wins):
-- `STOP_NOW` — immediate response; safety trigger (fire, leak spraying/on a hot surface/in a people area, a missing or bypassed safety device, brake/steering failure, uncontrolled movement, loose wheel nuts, etc.) or a stated line/critical-machine stoppage or rapidly worsening failure.
-- `TODAY` — degraded but running, or down with a workaround; likely to get worse within about a day if not actioned.
-- `PLAN` — a real defect with no immediate safety, production or quality effect; can wait for a planned window.
-- `MONITOR` — no repair action needed yet; observe or recheck.
+Here is a short summary.
 
-**Route** (by the component or system to be repaired, not the machine name or symptom):
-- `MECHANICAL` — bearings, gears, shafts, belts, structures, mechanical brakes, buckets, liners, etc.
-- `ELECTRICAL` — motors, cables, breakers, contactors, drives, batteries, panels, etc.
-- `HYDRAULIC_PNEUMATIC` — hoses, cylinders, valves, hydraulic/pneumatic pumps, air lines, compressors.
-- `INSTRUMENTATION_CONTROLS` — sensors, transmitters, PLCs, HMIs, calibration, control-loop and communication faults.
-- `LUBRICATION` — greasing, oil top-up/change, auto-lube faults.
-- `ESCALATE` — no component or discipline-specific symptom given, several disciplines equally likely with no clue, not a maintenance job, or unreadable text. A priority label is still required.
+**Priority** (check the labels in this order. Use the first one that matches):
+
+- `STOP_NOW` — The issue needs an immediate response. Examples include fire; a leak that is spraying, on a hot surface or in an area where people are present; a missing or bypassed safety device; brake or steering failure; uncontrolled movement; loose wheel nuts; or a stated stoppage of a production line or critical machine. It also applies when a failure is getting worse quickly.
+- `TODAY` — The machine is still running with reduced performance, or it is stopped but has a workaround. The problem is likely to get worse within about a day if nobody acts.
+- `PLAN` — There is a real defect, but it has no immediate safety, production or quality impact. It can wait until a planned maintenance window.
+- `MONITOR` — No repair is needed yet. The issue only needs to be watched or checked again.
+
+**Route** (choose the route based on the component or system that needs repair, not the machine name or the symptom):
+
+- `MECHANICAL` — Bearings, gears, shafts, belts, structures, mechanical brakes, buckets, liners and similar parts.
+- `ELECTRICAL` — Motors, cables, breakers, contactors, drives, batteries, panels and similar parts.
+- `HYDRAULIC_PNEUMATIC` — Hoses, cylinders, valves, hydraulic or pneumatic pumps, air lines and compressors.
+- `INSTRUMENTATION_CONTROLS` — Sensors, transmitters, PLCs, HMIs, calibration, control-loop problems and communication faults.
+- `LUBRICATION` — Greasing, oil top-ups or changes, and automatic lubrication faults.
+- `ESCALATE` — Use this when the text does not name a component or give a clear discipline-specific symptom; when several routes seem equally likely and there is no clue; when the ticket is not a maintenance job; or when the text cannot be read. A priority label is still required.
 
 ## 4. Results on 1,500 real test texts
 
-`data/processed/test.jsonl` (1,500 real texts, never seen in training or any val-only tuning step). Source: [`docs/evaluation.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/evaluation.md).
+The results below use the [test split](https://huggingface.co/datasets/karthe05/mwo-triage-data/viewer/default/test) of [`karthe05/mwo-triage-data`](https://huggingface.co/datasets/karthe05/mwo-triage-data). It contains 1,500 real texts that were not used during training or validation-only tuning. See [`docs/evaluation.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/evaluation.md).
 
 ### Headline table
 
@@ -77,7 +112,9 @@ Full definitions, worked examples and tie-break rules are in [`docs/labelling-ru
 | BERT L-4/H-128 frozen baseline | 0.4648 | 0.4255 | 0.1081 / — | 0.2667 / — | 18.28 | 1.799 |
 | DeBERTa-v3-base teacher (reference) | 0.8675 | 0.8415 | 0.6757 / — | 0.7895 / — | 701.37 | 51.249 |
 
-The frozen baseline uses the same base encoder with a simple classification head and no fine-tuning, confirming that full fine-tuning (this project's locked training choice) is what makes the model usable. The teacher is a much larger reference model (184M+ parameters, 701.37 MB) that `mwo-triage-13M` was distilled from; distillation was tried for this model too but not used (see section 6). The teacher is not released.
+The frozen baseline uses the same base encoder, but only has a simple classification head. It was not fine-tuned. Its results show that full fine-tuning, which was the training approach chosen for this project, is important for making the model useful.
+
+The teacher is a much larger reference model (184M+ parameters, 701.37 MB) that `mwo-triage-13M` was distilled from. Distillation was tried for this model too, but not used (see section 6). The teacher model is not released.
 
 ### Per-class route F1 (balanced mode)
 
@@ -92,18 +129,20 @@ The frozen baseline uses the same base encoder with a simple classification head
 
 ### Two operating modes
 
-The model ships with a calibrated STOP_NOW probability threshold (t=0.2009, fit on validation data for STOP_NOW recall ≥ 0.85), giving a choice of operating point:
+The model includes a calibrated threshold for `STOP_NOW`. The threshold is t=0.2009. It was selected using validation data to target STOP_NOW recall ≥ 0.85.
+
+You can choose between two modes:
 
 | mode | priority macro-F1 | route macro-F1 | STOP_NOW recall | STOP_NOW precision |
 |---|---|---|---|---|
 | Balanced (argmax, calibrated probs) | 0.8265 | 0.8008 | 0.6396 | 0.6339 |
 | Safety (STOP_NOW if P ≥ t=0.2009, else argmax) | 0.8088 | 0.8008 | 0.8378 | 0.4650 |
 
-Safety mode catches more true STOP_NOW cases at the cost of more false STOP_NOW alarms; it does not change the route head.
+Safety mode finds more of the real `STOP_NOW` cases. However, it also produces more false `STOP_NOW` alarms. It does not change the route prediction.
 
 ### Calibration (ECE)
 
-Per-head temperature scaling was fit on validation data (priority T=1.4289, route T=1.3630).
+Temperature scaling was applied separately to the priority and route outputs. The values were fitted using validation data (priority T=1.4289, route T=1.3630).
 
 | head | ECE before | ECE after |
 |---|---|---|
@@ -127,56 +166,82 @@ Per-head temperature scaling was fit on validation data (priority T=1.4289, rout
 
 ## 5. Training data
 
-Real training examples are work orders from **MaintNorm** and **MaintIE** (mining and heavy mobile equipment maintenance text). A set of verified synthetic factory work orders (CNC, presses, robots, conveyors, compressors, paint shops, etc.) was added to the training split only, to broaden coverage beyond mining-fleet language; the test set is real text only.
+The real training examples come from **MaintNorm** and **MaintIE**. These datasets contain maintenance text from mining and heavy mobile equipment.
 
-Labels follow [`docs/labelling-rulebook.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/labelling-rulebook.md) and were produced by two independent AI labelling passes — Claude Sonnet 5.5 (Pass A) and Claude Opus 5.5 (Pass B) — reading the same rulebook, over the complete real-text labelling pool (11,497 texts). Agreement between the two passes was 92.6% on priority (kappa 0.879), 92.9% on route (kappa 0.900), and 86.6% on both heads together (an example counts as agreeing only if priority and route both match).
+We also added verified synthetic factory work orders to the training split. These examples cover areas such as CNC machines, presses, robots, conveyors, compressors and paint shops. They help the model cover more than mining and fleet maintenance language. The test set contains real text only.
+
+The labels follow [`docs/labelling-rulebook.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/labelling-rulebook.md). Two separate AI labelling passes labelled the same set of real texts. The models used were Claude Sonnet 5.5 (Pass A) and Claude Opus 5.5 (Pass B). Both followed the same rulebook and labelled the full pool of 11,497 real texts.
+
+The two passes agreed on:
+
+- 92.6% of priority labels (kappa 0.879).
+- 92.9% of route labels (kappa 0.900).
+- 86.6% of examples across both outputs together (kappa not reported for this combined figure). An example counts as an agreement only when both its priority and route labels match.
 
 Where the two passes disagreed:
 
-- **Test and validation pools**: every disagreement was adjudicated by a third pass applying the rulebook's tie-break rules. 11 of these were decided by Claude Fable 5.2 (batch mode); the remaining 300 were decided by Claude Code in-session (`claude-sonnet-5`).
-- **Training pool**: disagreements take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A; see [`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) sections 3-4).
+- **Test and validation pools:** A third pass reviewed every disagreement and applied the rulebook's tie-break rules. Claude Fable 5.2 (batch mode) decided 11 cases. Claude Code in-session (`claude-sonnet-5`) decided the remaining 300.
+- **Training pool:** We kept Pass B's label for disagreements instead of removing those examples. Pass B had performed better than Pass A when compared with the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A; see [`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) sections 3-4).
 
-A small number of documented rule overrides were also applied:
+We also applied a small number of documented rule overrides:
 
-- **31 brake/steering cases** ([`scripts/apply_rulings.py`](https://github.com/karthekeyan/mwo-triage/blob/main/scripts/apply_rulings.py), `data/interim/rulings_overrides.jsonl`): applied to records where Pass A and Pass B already agreed, across all pools — any work order naming a brake or steering fault, u/s, not working or failed on mobile equipment was set to `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights, which keep their original label.
-- **Retarder and hook rulings**: applied separately, during the in-session adjudication of test/val disagreements above, as part of its consistency pass — a retarder reported as u/s or not working on mobile equipment, or a bent or in-need-of-straightening tub hook, is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
+- **31 brake/steering cases** ([`scripts/apply_rulings.py`](https://github.com/karthekeyan/mwo-triage/blob/main/scripts/apply_rulings.py), `data/interim/rulings_overrides.jsonl`): These changes were made to records where Pass A and Pass B already agreed, across all pools. On mobile equipment, a work order that names a brake or steering fault as u/s, not working or failed was labelled `STOP_NOW`/`P1-SAFETY`. This rule does not apply to wording about warning or fault lights only, brake cooling-hose or circuit faults, steering-wheel comfort or adjustment features, or brake (signal) lights. Those examples keep their original labels.
+- **Retarder and hook rulings:** These were applied separately during the in-session review of test and validation disagreements described above. A retarder reported as u/s or not working on mobile equipment, or a bent tub hook or one that needs straightening, is labelled `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
 
-**No human domain-expert review** was done on any label; quality comes from the rulebook, the two-pass agreement process, the documented rule overrides above, and the limitations documented here and in the rulebook itself.
+**No human domain expert reviewed any of the labels.** Label quality depends on the rulebook, the agreement between the two AI labelling passes, the documented rule overrides above, and the limitations described here and in the rulebook.
 
-Synthetic data: 2,489 synthetic factory work orders were written in-session by Claude Code (claude-sonnet-5) to a target label and style plan ([`configs/synthetic_plan.yaml`](https://github.com/karthekeyan/mwo-triage/blob/main/configs/synthetic_plan.yaml)); a separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
+### Synthetic data
 
-Final split sizes: train 11,011 (9,197 real + 1,814 synthetic), val 800, test 1,500 — val and test are real text only.
+Claude Code (`claude-sonnet-5`) created 2,489 synthetic factory work orders in-session. It followed a target label and style plan (`configs/synthetic_plan.yaml`).
+
+A separate, fresh Claude Code session then labelled the synthetic texts without seeing their target labels. We kept the 1,814 examples (72.9%) where the new labels matched the original targets. Synthetic examples were used only for training.
+
+### Final split sizes
+
+- Train: 11,011 (9,197 real + 1,814 synthetic).
+- Val: 800.
+- Test: 1,500.
+
+The validation and test sets contain real text only.
 
 ## 6. Training procedure
 
-Full fine-tune (no LoRA/QLoRA) of `google/bert_uncased_L-4_H-128_A-2` with two independent classification heads (priority, route) on a shared encoder, on the passB-default training data (train-pool Pass A/Pass B disagreements take Pass B's label rather than being dropped; see section 5).
+We fully fine-tuned `google/bert_uncased_L-4_H-128_A-2`. We did not use LoRA or QLoRA. The model has two separate classification heads, one for priority and one for route, using a shared encoder, trained on the passB-default training data (train-pool Pass A/Pass B disagreements take Pass B's label rather than being dropped; see section 5).
+
+Training settings:
 
 - Encoder parameters: 4,782,464
-- Learning rate: 3e-4, AdamW, 10% linear warmup then linear decay
-- Batch size 64, max sequence length 32, seed 42, fp16
-- Up to 25 epochs, early stopping on validation mean macro-F1 (patience 4); best epoch 7 (run `L4_a_earlystop_passb`)
-- Validation data only was used for all model selection, calibration and threshold fitting; the test set was loaded exactly once, after those choices were locked.
+- Learning rate: 3e-4, AdamW, 10% linear warmup followed by linear decay
+- Batch size 64, maximum sequence length 32, seed 42, fp16
+- Up to 25 epochs, with early stopping based on validation mean macro-F1 (patience 4); the best epoch was 7 (run `L4_a_earlystop_passb`)
+- Validation data was used for model selection, calibration and threshold fitting. The test set was used exactly once, after all these choices were fixed.
 
 **Distillation from the DeBERTa-v3 teacher was tried and not used for this model.** With the same distillation setup used for `mwo-triage-13M` (0.5 × hard-label cross-entropy + 0.5 × KL(teacher ‖ student) at temperature 2, scaled by T²), the distilled run scored slightly worse on validation than the plain passB-default run: val mean macro-F1 0.8293 vs. 0.8320, and STOP_NOW recall 0.6618 vs. 0.7059 ([`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) section 5). The passB-default (non-distilled) checkpoint was carried forward as the final pick for this model ([`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) section 6).
 
 ## 7. Limitations
 
-- **`ESCALATE` is the weakest route** (F1 0.5868 on test, balanced mode) — by construction it covers vague, multi-discipline or non-maintenance text, which is the hardest class to separate.
-- **`INSTRUMENTATION_CONTROLS` is the second-weakest route** (F1 0.7404).
+Please keep these limitations in mind when using the model:
+
+- **`ESCALATE` is the weakest route.** Its test F1 is 0.5868 in balanced mode. By construction this class covers vague, multi-discipline or non-maintenance text, which is the hardest to separate.
+- **`INSTRUMENTATION_CONTROLS` is the second-weakest route.** Its F1 is 0.7404.
 - **English only.**
-- Real training and test data is **mostly mining heavy-mobile-equipment language** (MaintNorm, MaintIE); performance on other industrial domains relies on the added synthetic factory data and may be weaker than the headline numbers suggest, particularly for text styles not resembling either source.
-- **No label was reviewed by a certified maintenance engineer.** The rulebook itself states it reflects general industrial practice, is not a safety standard, and must not replace a site's own safety procedures.
-- **Safety mode trades precision for recall**: STOP_NOW precision drops from 0.6339 to 0.4650 when recall is pushed from 0.6396 to 0.8378, i.e. more false STOP_NOW alarms in exchange for fewer missed ones.
-- **Weakest on the shortest texts**: both priority and route macro-F1 are lowest on the ≤4-word bucket (0.7942 / 0.7701) and improve on longer texts (0.8373-0.8346 priority, 0.8042-0.8261 route for 5-7 and ≥8 words) — the opposite pattern from `mwo-triage-13M`, whose longest-text bucket is its weakest. The ≥8-word bucket has a small test support (n=86).
-- Route performance is weaker on `maintie` texts than `maintnorm` texts (0.7643 vs. 0.8076 macro-F1).
-- STOP_NOW itself is the hardest priority class even in balanced mode (F1 0.6368 vs. 0.84-0.92 for the other three priority classes).
-- Lower than `mwo-triage-13M` on priority and route macro-F1 (0.8265 vs. 0.8486; 0.8008 vs. 0.8219) and on balanced-mode STOP_NOW recall; choose this model when latency or footprint, not peak accuracy, is the constraint.
+- The real training and test data mostly contains language about mining and heavy mobile equipment (MaintNorm and MaintIE). Synthetic factory data was added to improve coverage of other industrial areas. Results in other industries may still be weaker than the headline scores, especially when the wording is different from both data sources.
+- **A certified maintenance engineer did not review any labels.** The rulebook says it reflects general industrial practice. It is not a safety standard and must not replace a site's own safety procedures.
+- **Safety mode gives up some precision to improve recall.** STOP_NOW precision falls from 0.6339 to 0.4650 when recall increases from 0.6396 to 0.8378. This means safety mode produces more false STOP_NOW alarms in exchange for missing fewer real STOP_NOW cases.
+- **Weakest on the shortest texts.** Both priority and route macro-F1 are lowest on the ≤4-word bucket (0.7942 / 0.7701) and improve on longer texts (0.8373-0.8346 priority, 0.8042-0.8261 route for 5-7 and ≥8 words) — the opposite pattern from `mwo-triage-13M`, whose longest-text bucket is its weakest. The ≥8-word bucket has a small test support (n=86).
+- Route results are weaker on `maintie` texts than on `maintnorm` texts (0.7643 vs. 0.8076 macro-F1).
+- `STOP_NOW` is the most difficult priority class, even in balanced mode. Its F1 is 0.6368, compared with 0.84-0.92 for the other three priority classes.
+- It scores lower than `mwo-triage-13M` on priority and route macro-F1 (0.8265 vs. 0.8486; 0.8008 vs. 0.8219) and on balanced-mode STOP_NOW recall. Choose this model when latency or footprint, not peak accuracy, is the constraint.
 
 ## 8. How to use
 
-```
+Install the required packages:
+
+```bash
 pip install torch transformers safetensors huggingface_hub
 ```
+
+Download the inference file and load the model:
 
 ```python
 from huggingface_hub import hf_hub_download
@@ -194,19 +259,25 @@ balanced = model.predict(texts, mode="balanced")
 safety = model.predict(texts, mode="safety")
 ```
 
-`predict` returns one dict per input text, with: `priority` and `route` (the predicted labels), `priority_confidence` and `route_confidence` (each head's calibrated top-class probability), and `mode` (echoing back whichever of `"balanced"` or `"safety"` was requested). In `"safety"` mode, `priority` is forced to `STOP_NOW` whenever its calibrated probability is at or above this checkpoint's fitted threshold (t=0.2009), even if another class has a higher raw probability; `route` and its confidence are unaffected by the mode.
+The `predict` method returns one dictionary for each input text. Each dictionary contains:
+
+- `priority` and `route`: the predicted labels.
+- `priority_confidence` and `route_confidence`: the calibrated probability of the top prediction from each classification head.
+- `mode`: the mode you requested, either `"balanced"` or `"safety"`.
+
+In `"safety"` mode, the model returns `STOP_NOW` whenever its calibrated probability is at or above this checkpoint's fitted threshold (t=0.2009). This applies even if another priority class has a higher raw probability. The route prediction and its confidence do not change between modes.
 
 ## 9. Credits and citations
 
-Real training and test text is drawn from:
+The real training and test text comes from these datasets:
 
 - **MaintNorm** — Bikaun, Hodkiewicz and Liu, WNUT 2024. MIT licence. NLP-TLP Group, University of Western Australia. Repo: https://github.com/nlp-tlp/maintnorm . Paper: https://aclanthology.org/2024.wnut-1.7
 - **MaintIE** — Bikaun et al., LREC-COLING 2024. MIT licence. NLP-TLP Group, University of Western Australia. Repo: https://github.com/nlp-tlp/maintie . Paper: https://aclanthology.org/2024.lrec-main.954
 
-Please credit MaintNorm and MaintIE and retain their licence notices if you use this model or the underlying data.
+Please give credit to MaintNorm and MaintIE, and keep their licence notices if you use this model or the original data.
 
 Base encoder: one of **Google's BERT miniatures** (`google/bert_uncased_L-4_H-128_A-2`, https://huggingface.co/google/bert_uncased_L-4_H-128_A-2), Apache-2.0 licence. Turc, Chang, Lee and Toutanova, "Well-Read Students Learn Better: On the Importance of Pre-training Compact Models" (2019).
 
 ## 10. Author
 
-karthe05
+CobuildX AI
