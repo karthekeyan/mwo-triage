@@ -3,7 +3,8 @@ license: apache-2.0
 language: en
 pipeline_tag: text-classification
 base_model: google/bert_uncased_L-4_H-128_A-2
-# datasets: TODO - fill in the published dataset id(s) once the dataset is pushed to the Hub
+datasets:
+- karthe05/mwo-triage-data
 tags:
 - maintenance
 - manufacturing
@@ -48,7 +49,7 @@ This model suggests a triage call for a human planner to confirm, review or over
 
 ## 3. Labels
 
-Full definitions, worked examples and tie-break rules are in `docs/labelling-rulebook.md` (v1.3). Short summary:
+Full definitions, worked examples and tie-break rules are in [`docs/labelling-rulebook.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/labelling-rulebook.md) (v1.3). Short summary:
 
 **Priority** (checked in this order; first match wins):
 - `STOP_NOW` — immediate response; safety trigger (fire, leak spraying/on a hot surface/in a people area, a missing or bypassed safety device, brake/steering failure, uncontrolled movement, loose wheel nuts, etc.) or a stated line/critical-machine stoppage or rapidly worsening failure.
@@ -66,7 +67,7 @@ Full definitions, worked examples and tie-break rules are in `docs/labelling-rul
 
 ## 4. Results on 1,500 real test texts
 
-`data/processed/test.jsonl` (1,500 real texts, never seen in training or any val-only tuning step). Source: `docs/evaluation.md`.
+`data/processed/test.jsonl` (1,500 real texts, never seen in training or any val-only tuning step). Source: [`docs/evaluation.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/evaluation.md).
 
 ### Headline table
 
@@ -128,21 +129,21 @@ Per-head temperature scaling was fit on validation data (priority T=1.4289, rout
 
 Real training examples are work orders from **MaintNorm** and **MaintIE** (mining and heavy mobile equipment maintenance text). A set of verified synthetic factory work orders (CNC, presses, robots, conveyors, compressors, paint shops, etc.) was added to the training split only, to broaden coverage beyond mining-fleet language; the test set is real text only.
 
-Labels follow `docs/labelling-rulebook.md` and were produced by two independent AI labelling passes — Claude Sonnet 5.5 (Pass A) and Claude Opus 5.5 (Pass B) — reading the same rulebook, over the complete real-text labelling pool (11,497 texts). Agreement between the two passes was 92.6% on priority (kappa 0.879), 92.9% on route (kappa 0.900), and 86.6% on both heads together (an example counts as agreeing only if priority and route both match).
+Labels follow [`docs/labelling-rulebook.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/labelling-rulebook.md) and were produced by two independent AI labelling passes — Claude Sonnet 5.5 (Pass A) and Claude Opus 5.5 (Pass B) — reading the same rulebook, over the complete real-text labelling pool (11,497 texts). Agreement between the two passes was 92.6% on priority (kappa 0.879), 92.9% on route (kappa 0.900), and 86.6% on both heads together (an example counts as agreeing only if priority and route both match).
 
 Where the two passes disagreed:
 
 - **Test and validation pools**: every disagreement was adjudicated by a third pass applying the rulebook's tie-break rules. 11 of these were decided by Claude Fable 5.2 (batch mode); the remaining 300 were decided by Claude Code in-session (`claude-sonnet-5`).
-- **Training pool**: disagreements take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A; see `docs/experiment-log.md` sections 3-4).
+- **Training pool**: disagreements take Pass B's label rather than being dropped, after Pass B was found to be the more accurate labeller against the adjudicated validation labels (val priority macro-F1 0.975 vs. 0.923 for Pass A; see [`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) sections 3-4).
 
 A small number of documented rule overrides were also applied:
 
-- **31 brake/steering cases** (`scripts/apply_rulings.py`, `data/interim/rulings_overrides.jsonl`): applied to records where Pass A and Pass B already agreed, across all pools — any work order naming a brake or steering fault, u/s, not working or failed on mobile equipment was set to `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights, which keep their original label.
+- **31 brake/steering cases** ([`scripts/apply_rulings.py`](https://github.com/karthekeyan/mwo-triage/blob/main/scripts/apply_rulings.py), `data/interim/rulings_overrides.jsonl`): applied to records where Pass A and Pass B already agreed, across all pools — any work order naming a brake or steering fault, u/s, not working or failed on mobile equipment was set to `STOP_NOW`/`P1-SAFETY`, excluding warning/fault-light-only wording, brake cooling-hose/circuit faults, steering-wheel comfort/adjustment features, and brake (signal) lights, which keep their original label.
 - **Retarder and hook rulings**: applied separately, during the in-session adjudication of test/val disagreements above, as part of its consistency pass — a retarder reported as u/s or not working on mobile equipment, or a bent or in-need-of-straightening tub hook, is `STOP_NOW`/`MECHANICAL`/`P1-SAFETY`.
 
 **No human domain-expert review** was done on any label; quality comes from the rulebook, the two-pass agreement process, the documented rule overrides above, and the limitations documented here and in the rulebook itself.
 
-Synthetic data: 2,489 synthetic factory work orders were written in-session by Claude Code (claude-sonnet-5, under a Claude Pro subscription, with no API calls) to a target label and style plan (`configs/synthetic_plan.yaml`); a separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
+Synthetic data: 2,489 synthetic factory work orders were written in-session by Claude Code (claude-sonnet-5, under a Claude Pro subscription, with no API calls) to a target label and style plan ([`configs/synthetic_plan.yaml`](https://github.com/karthekeyan/mwo-triage/blob/main/configs/synthetic_plan.yaml)); a separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
 
 Final split sizes: train 11,011 (9,197 real + 1,814 synthetic), val 800, test 1,500 — val and test are real text only.
 
@@ -156,7 +157,7 @@ Full fine-tune (no LoRA/QLoRA) of `google/bert_uncased_L-4_H-128_A-2` with two i
 - Up to 25 epochs, early stopping on validation mean macro-F1 (patience 4); best epoch 7 (run `L4_a_earlystop_passb`)
 - Validation data only was used for all model selection, calibration and threshold fitting; the test set was loaded exactly once, after those choices were locked.
 
-**Distillation from the DeBERTa-v3 teacher was tried and not used for this model.** With the same distillation setup used for `mwo-triage-13M` (0.5 × hard-label cross-entropy + 0.5 × KL(teacher ‖ student) at temperature 2, scaled by T²), the distilled run scored slightly worse on validation than the plain passB-default run: val mean macro-F1 0.8293 vs. 0.8320, and STOP_NOW recall 0.6618 vs. 0.7059 (`docs/experiment-log.md` section 5). The passB-default (non-distilled) checkpoint was carried forward as the final pick for this model (`docs/experiment-log.md` section 6).
+**Distillation from the DeBERTa-v3 teacher was tried and not used for this model.** With the same distillation setup used for `mwo-triage-13M` (0.5 × hard-label cross-entropy + 0.5 × KL(teacher ‖ student) at temperature 2, scaled by T²), the distilled run scored slightly worse on validation than the plain passB-default run: val mean macro-F1 0.8293 vs. 0.8320, and STOP_NOW recall 0.6618 vs. 0.7059 ([`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) section 5). The passB-default (non-distilled) checkpoint was carried forward as the final pick for this model ([`docs/experiment-log.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/experiment-log.md) section 6).
 
 ## 7. Limitations
 
