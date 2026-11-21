@@ -15,6 +15,20 @@ tags:
 
 # mwo-triage-13M
 
+## Why this model exists
+
+**The problem.** In many plants, planners still read every maintenance request by hand to decide its urgency and which team should handle it, even when the plant already has SAP PM or Maximo.
+
+**Why it hurts.** Manual sorting is slow and inconsistent. Some jobs get marked urgent when they are not, while genuinely urgent problems can wait in the queue. Planners can spend a large part of their day just sorting requests instead of fixing anything.
+
+**Why it matters.** Delays on genuinely urgent jobs mean downtime, safety risk and lost production. When sorting is inconsistent, technicians may end up working on less important jobs first while urgent ones wait.
+
+**How it is often done today.** The operator picks a priority from a dropdown when logging the request. A planner or supervisor then corrects it, often in the morning meeting. Genuine emergencies get reported by phone instead of waiting for this process.
+
+**What this model does.** It reads one request and suggests a priority and a team, each with a confidence score. The planner still reviews and approves the suggestion. Vague requests are routed to `ESCALATE` rather than guessed at, and low-confidence suggestions can be flagged for manual review instead of being acted on automatically. It runs inside the plant on an ordinary computer, at about 6.5 ms per request on CPU, with no GPU, no cloud dependency and no per-request cost.
+
+**How well it works.** On 1,500 real work orders it had never seen, it scored macro-F1 0.85 for priority and 0.82 for team. It caught 72% of real emergencies in balanced mode and 83% in safety mode.
+
 ## Example
 
 This is real output from the published model in balanced mode (see section 8):
