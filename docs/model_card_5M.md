@@ -110,8 +110,8 @@ All five models were tested once on the same 1,500 real work orders that none of
 
 | model | quality score, priority (0-1) | quality score, team (0-1) | emergencies caught |
 |---|---|---|---|
-| mwo-triage-13M (ours) | 0.85 | 0.82 | 72%, or 83% in safety mode |
-| **mwo-triage-5M (ours)** | **0.83** | **0.80** | **64%, or 84% in safety mode** |
+| mwo-triage-13M | 0.85 | 0.82 | 72%, or 83% in safety mode |
+| **mwo-triage-5M** | **0.83** | **0.80** | **64%, or 84% in safety mode** |
 | Google ELECTRA-small, as released | 0.34 | 0.12 | 0% |
 | Google BERT tiny, as released | 0.46 | 0.43 | 11% |
 | Microsoft DeBERTa-v3-base, trained by us as a coach (about 13x bigger) | 0.87 | 0.84 | 68% |
