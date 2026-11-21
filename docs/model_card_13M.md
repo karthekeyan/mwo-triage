@@ -192,7 +192,7 @@ We also applied a small number of documented rule overrides:
 
 ### Synthetic data
 
-Claude Code (`claude-sonnet-5`) created 2,489 synthetic factory work orders in-session. It followed a target label and style plan (`configs/synthetic_plan.yaml`). This work was done under a Claude Pro subscription, with no API calls.
+Claude Code (`claude-sonnet-5`) created 2,489 synthetic factory work orders in-session. It followed a target label and style plan (`configs/synthetic_plan.yaml`).
 
 A separate, fresh Claude Code session then labelled the synthetic texts without seeing their target labels. We kept the 1,814 examples (72.9%) where the new labels matched the original targets. Synthetic examples were used only for training.
 

@@ -143,7 +143,7 @@ A small number of documented rule overrides were also applied:
 
 **No human domain-expert review** was done on any label; quality comes from the rulebook, the two-pass agreement process, the documented rule overrides above, and the limitations documented here and in the rulebook itself.
 
-Synthetic data: 2,489 synthetic factory work orders were written in-session by Claude Code (claude-sonnet-5, under a Claude Pro subscription, with no API calls) to a target label and style plan ([`configs/synthetic_plan.yaml`](https://github.com/karthekeyan/mwo-triage/blob/main/configs/synthetic_plan.yaml)); a separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
+Synthetic data: 2,489 synthetic factory work orders were written in-session by Claude Code (claude-sonnet-5) to a target label and style plan ([`configs/synthetic_plan.yaml`](https://github.com/karthekeyan/mwo-triage/blob/main/configs/synthetic_plan.yaml)); a separate, fresh Claude Code session then relabelled them blind from the text alone, and the 1,814 (72.9%) where the blind labels matched the targets were kept. Synthetic examples are train-only.
 
 Final split sizes: train 11,011 (9,197 real + 1,814 synthetic), val 800, test 1,500 — val and test are real text only.
 
