@@ -104,6 +104,20 @@ Here is a short summary.
 
 The results below use the [test split](https://huggingface.co/datasets/karthe05/mwo-triage-data/viewer/default/test) of [`karthe05/mwo-triage-data`](https://huggingface.co/datasets/karthe05/mwo-triage-data). It contains 1,500 real texts that were not used during training or validation-only tuning. See [`docs/evaluation.md`](https://github.com/karthekeyan/mwo-triage/blob/main/docs/evaluation.md).
 
+### Results at a glance
+
+All five models were tested once on the same 1,500 real work orders that none of them had seen. Scores run from 0 to 1, higher is better.
+
+| model | quality score, priority (0-1) | quality score, team (0-1) | emergencies caught |
+|---|---|---|---|
+| mwo-triage-13M (ours) | 0.85 | 0.82 | 72%, or 83% in safety mode |
+| **mwo-triage-5M (ours)** | **0.83** | **0.80** | **64%, or 84% in safety mode** |
+| Google ELECTRA-small, as released | 0.34 | 0.12 | 0% |
+| Google BERT tiny, as released | 0.46 | 0.43 | 11% |
+| Microsoft DeBERTa-v3-base, trained by us as a coach (about 13x bigger) | 0.87 | 0.84 | 68% |
+
+The quality score is macro-F1, which weights every label equally, so a model can't score well by only getting the common labels right.
+
 ### Headline table
 
 | model | priority macro-F1 (bal.) | route macro-F1 (bal.) | STOP_NOW recall (bal. / safety) | STOP_NOW precision (bal. / safety) | size (MB) | CPU latency (ms/text) |
